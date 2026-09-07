@@ -127,8 +127,14 @@ fn i2_rejects_an_unguarded_irreversible_action() {
         "I2",
     );
     let diagnostic = report.errors().find(|d| d.code == "I2").unwrap();
-    assert!(diagnostic.suggestion.is_some(), "an I2 rejection must say what to do");
-    assert!(diagnostic.operation.is_some(), "an I2 rejection must name the operation");
+    assert!(
+        diagnostic.suggestion.is_some(),
+        "an I2 rejection must say what to do"
+    );
+    assert!(
+        diagnostic.operation.is_some(),
+        "an I2 rejection must name the operation"
+    );
 }
 
 #[test]
@@ -629,7 +635,10 @@ fn every_checked_in_example_verifies_in_both_phases() {
         );
         checked += 1;
     }
-    assert!(checked >= 2, "expected at least two examples, saw {checked}");
+    assert!(
+        checked >= 2,
+        "expected at least two examples, saw {checked}"
+    );
 }
 
 #[test]

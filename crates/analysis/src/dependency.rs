@@ -67,7 +67,9 @@ impl DependencyGraph {
             collect_reads(module, later, &mut reads);
 
             for &earlier in &order[..position] {
-                let data = reads.iter().any(|value| producer.get(value) == Some(&earlier));
+                let data = reads
+                    .iter()
+                    .any(|value| producer.get(value) == Some(&earlier));
                 let effect = effects.conflict(earlier, later);
                 let reason = match (data, effect) {
                     (true, true) => Some(Reason::Both),
@@ -82,7 +84,12 @@ impl DependencyGraph {
             }
         }
 
-        DependencyGraph { block, order, predecessors, reasons }
+        DependencyGraph {
+            block,
+            order,
+            predecessors,
+            reasons,
+        }
     }
 
     /// The block this graph describes.
@@ -244,7 +251,11 @@ module @m version(0) {
         let profile = op_with_literal(&module, "profile");
         for literal in ["inspect_model", "inspect_hardware", "inspect_dataset"] {
             let producer = op_with_literal(&module, literal);
-            assert_eq!(graph.reason(producer, profile), Some(Reason::Data), "{literal}");
+            assert_eq!(
+                graph.reason(producer, profile),
+                Some(Reason::Data),
+                "{literal}"
+            );
         }
     }
 

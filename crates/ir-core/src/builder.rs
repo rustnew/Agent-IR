@@ -26,7 +26,10 @@ impl<'m> Builder<'m> {
 
     /// Builds into a specific block.
     pub fn at_block(module: &'m mut Module, block: BlockId) -> Self {
-        Builder { module, insertion: block }
+        Builder {
+            module,
+            insertion: block,
+        }
     }
 
     /// The module being built.
@@ -108,7 +111,8 @@ impl<'m> Builder<'m> {
         let values: Vec<ValueId> = args
             .into_iter()
             .map(|(name, ty)| {
-                self.module.add_block_arg(block, Some(name), ty, Provenance::from_tool())
+                self.module
+                    .add_block_arg(block, Some(name), ty, Provenance::from_tool())
             })
             .collect();
         let mut inner = Builder::at_block(self.module, block);
@@ -173,7 +177,15 @@ impl OpBuilder<'_, '_> {
 
     /// Inserts the operation and returns its id.
     pub fn build(self) -> OperationId {
-        let OpBuilder { builder, name, literal, operands, results, attributes, effect } = self;
+        let OpBuilder {
+            builder,
+            name,
+            literal,
+            operands,
+            results,
+            attributes,
+            effect,
+        } = self;
         let op = builder
             .module
             .create_op(name, literal, operands, results, attributes, effect);
@@ -202,7 +214,15 @@ impl OpBuilder<'_, '_> {
             1,
             "build_one/build_pair need exactly one declared result"
         );
-        let OpBuilder { builder, name, literal, operands, results, attributes, effect } = self;
+        let OpBuilder {
+            builder,
+            name,
+            literal,
+            operands,
+            results,
+            attributes,
+            effect,
+        } = self;
         let op = builder
             .module
             .create_op(name, literal, operands, results, attributes, effect);

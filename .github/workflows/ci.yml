@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: build, test and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      - name: Lints
+        run: cargo clippy --workspace --all-targets --all-features
+
+      - name: Tests
+        run: cargo test --workspace --all-features
+
+      # The examples double as documentation, so they have to stay exactly what
+      # the compiler emits. `agent-ir fmt --check` is what enforces that.
+      - name: Examples are canonical
+        run: cargo run --quiet -p agent-ir -- fmt --check examples/*.air
+
+      - name: Examples verify
+        run: |
+          for file in examples/*.air; do
+            cargo run --quiet -p agent-ir -- verify "$file"
+          done
+
+  docs:
+    name: documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - name: rustdoc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --all-features

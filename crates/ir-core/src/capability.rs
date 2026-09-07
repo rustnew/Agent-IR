@@ -71,7 +71,8 @@ impl CapabilitySet {
 
     /// Adds a capability, replacing any capability of the same name.
     pub fn grant(&mut self, capability: Capability) -> &mut Self {
-        self.capabilities.insert(capability.name.clone(), capability);
+        self.capabilities
+            .insert(capability.name.clone(), capability);
         self
     }
 

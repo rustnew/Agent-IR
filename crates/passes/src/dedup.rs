@@ -187,8 +187,7 @@ mod tests {
 
     #[test]
     fn reuses_an_identical_external_read() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @web scope("web") grants(read_external)
 
   agent.func "f" {
@@ -198,8 +197,7 @@ mod tests {
     agent.return(%second) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert_eq!(report.rewritten.len(), 1);
         assert!(
             module.to_string().contains("agent.return(%first)"),
@@ -209,8 +207,7 @@ mod tests {
 
     #[test]
     fn refuses_when_a_write_to_the_same_scope_sits_in_between() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   capability @db scope("db") grants(read_external, write_external)
 
   agent.func "f" {
@@ -221,16 +218,14 @@ mod tests {
     agent.return(%second) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed);
         assert!(report.notes.iter().any(|d| d.code == "reuse-declined"));
     }
 
     #[test]
     fn allows_reuse_across_a_write_to_a_different_scope() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   capability @db scope("db") grants(read_external)
   capability @cache scope("cache") grants(write_external)
 
@@ -242,15 +237,13 @@ mod tests {
     agent.return(%second) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert_eq!(report.rewritten.len(), 1);
     }
 
     #[test]
     fn never_deduplicates_a_write() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   capability @db scope("db") grants(write_external)
 
   agent.func "f" {
@@ -260,15 +253,13 @@ mod tests {
     agent.return(%b) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed, "two appends are two appends");
     }
 
     #[test]
     fn never_deduplicates_a_stochastic_call() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   capability @llm scope(*) grants(stochastic)
 
   agent.func "f" {
@@ -278,15 +269,16 @@ mod tests {
     agent.return(%b) {effect = #pure}
   } {effect = #pure}
 }
-"#,
+"#);
+        assert!(
+            !report.changed,
+            "sampling twice is the point of sampling twice"
         );
-        assert!(!report.changed, "sampling twice is the point of sampling twice");
     }
 
     #[test]
     fn different_arguments_are_different_calls() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   capability @web scope("web") grants(read_external)
 
   agent.func "f" {
@@ -296,15 +288,13 @@ mod tests {
     agent.return(%second) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed);
     }
 
     #[test]
     fn no_cache_opts_an_operation_out() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   capability @clock scope("clock") grants(read_external)
 
   agent.func "f" {
@@ -313,8 +303,7 @@ mod tests {
     agent.return(%b) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed, "a clock is never twice the same");
     }
 
@@ -322,8 +311,7 @@ mod tests {
     fn does_not_reach_across_block_boundaries() {
         // The read inside the loop body runs once per iteration and must not be
         // folded into the one before the loop.
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   capability @web scope("web") grants(read_external)
 
   agent.func "f" {
@@ -336,8 +324,7 @@ mod tests {
     agent.return(%outer) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed);
     }
 }

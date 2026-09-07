@@ -18,12 +18,11 @@ use agent_ir::dialects::Registry;
 use agent_ir::lowering::{GenericRuntime, Scheduler};
 use agent_ir::passes::PassManager;
 use agent_ir::runtime::{
-    Executor, InMemoryCheckpointStore, InMemoryEventLog, EventLog as _, RecordingEnvironment,
-    Value,
+    EventLog as _, Executor, InMemoryCheckpointStore, InMemoryEventLog, RecordingEnvironment, Value,
 };
 use agent_ir::verifier::Verifier;
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
@@ -117,12 +116,25 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
         Command::Fmt { files, check } => fmt(files, check),
-        Command::Verify { file, static_only, json } => verify(file, static_only, json),
+        Command::Verify {
+            file,
+            static_only,
+            json,
+        } => verify(file, static_only, json),
         Command::Opt { file, report } => opt(file, report),
-        Command::Plan { file, function, no_opt, json } => plan(file, function, no_opt, json),
-        Command::Run { file, function, tools, args, trace } => {
-            execute(file, function, tools, args, trace)
-        }
+        Command::Plan {
+            file,
+            function,
+            no_opt,
+            json,
+        } => plan(file, function, no_opt, json),
+        Command::Run {
+            file,
+            function,
+            tools,
+            args,
+            trace,
+        } => execute(file, function, tools, args, trace),
         Command::Dialects => {
             dialects();
             Ok(())
@@ -161,13 +173,15 @@ fn fmt(files: Vec<PathBuf>, check: bool) -> Result<(), String> {
         if check {
             would_change.push(path);
         } else {
-            std::fs::write(&path, formatted)
-                .map_err(|e| format!("{}: {e}", path.display()))?;
+            std::fs::write(&path, formatted).map_err(|e| format!("{}: {e}", path.display()))?;
             println!("formatted {}", path.display());
         }
     }
     if !would_change.is_empty() {
-        let names: Vec<String> = would_change.iter().map(|p| p.display().to_string()).collect();
+        let names: Vec<String> = would_change
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect();
         return Err(format!("not canonical:\n  {}", names.join("\n  ")));
     }
     Ok(())
@@ -228,12 +242,7 @@ fn opt(path: PathBuf, show_report: bool) -> Result<(), String> {
     Ok(())
 }
 
-fn plan(
-    path: PathBuf,
-    function: Option<String>,
-    no_opt: bool,
-    json: bool,
-) -> Result<(), String> {
+fn plan(path: PathBuf, function: Option<String>, no_opt: bool, json: bool) -> Result<(), String> {
     let source = read(&path)?;
     let mut module = parse(&source, &path)?;
     reject_if_invalid(&path, &Verifier::new().verify_all(&module))?;
@@ -253,7 +262,10 @@ fn plan(
         return Ok(());
     }
 
-    println!("plan for @{} :: {} (backend: {})", plan.module, plan.function, plan.backend);
+    println!(
+        "plan for @{} :: {} (backend: {})",
+        plan.module, plan.function, plan.backend
+    );
     println!("estimated: {}", plan.estimated);
     println!();
     print_plan(&plan.plan, 0);
@@ -291,11 +303,17 @@ fn print_plan(plan: &agent_ir::lowering::Plan, depth: usize) {
                         print_plan(otherwise, depth + 3);
                     }
                 }
-                Some(agent_ir::lowering::Control::Loop { max_iterations, body, .. }) => {
+                Some(agent_ir::lowering::Control::Loop {
+                    max_iterations,
+                    body,
+                    ..
+                }) => {
                     println!("{pad}    body (up to {max_iterations} iterations):");
                     print_plan(body, depth + 3);
                 }
-                Some(agent_ir::lowering::Control::While { condition, body, .. }) => {
+                Some(agent_ir::lowering::Control::While {
+                    condition, body, ..
+                }) => {
                     println!("{pad}    condition:");
                     print_plan(condition, depth + 3);
                     println!("{pad}    body:");
@@ -331,8 +349,8 @@ fn execute(
     let mut env = RecordingEnvironment::new();
     if let Some(tools) = tools {
         let text = read(&tools)?;
-        let table: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&text)
-            .map_err(|e| format!("{}: {e}", tools.display()))?;
+        let table: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(&text).map_err(|e| format!("{}: {e}", tools.display()))?;
         for (name, value) in table {
             env = env.returning(&name, Value::from_json(value));
         }
@@ -340,8 +358,8 @@ fn execute(
 
     let mut arguments = Vec::new();
     for (index, arg) in args.iter().enumerate() {
-        let json: serde_json::Value = serde_json::from_str(arg)
-            .map_err(|e| format!("--arg #{index} is not JSON: {e}"))?;
+        let json: serde_json::Value =
+            serde_json::from_str(arg).map_err(|e| format!("--arg #{index} is not JSON: {e}"))?;
         arguments.push(Value::from_json(json));
     }
 
@@ -409,15 +427,15 @@ fn passes() {
 
 // ------------------------------------------------------------------- helpers
 
-fn read(path: &PathBuf) -> Result<String, String> {
+fn read(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn parse(source: &str, path: &PathBuf) -> Result<Module, String> {
+fn parse(source: &str, path: &Path) -> Result<Module, String> {
     agent_ir::parser::parse_module(source).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn reject_if_invalid(path: &PathBuf, report: &Diagnostics) -> Result<(), String> {
+fn reject_if_invalid(path: &Path, report: &Diagnostics) -> Result<(), String> {
     if report.has_errors() {
         return Err(format!("{}: rejected\n{report}", path.display()));
     }

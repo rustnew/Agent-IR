@@ -27,7 +27,10 @@ impl UseMap {
         let mut uses = vec![Vec::new(); module.value_capacity()];
         module.walk(|op| {
             for (index, &operand) in op.operands.iter().enumerate() {
-                uses[operand.index()].push(Use { op: op.id, operand: index });
+                uses[operand.index()].push(Use {
+                    op: op.id,
+                    operand: index,
+                });
             }
         });
         UseMap { uses }

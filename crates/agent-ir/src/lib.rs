@@ -80,8 +80,10 @@ impl Error {
             Error::Parse(err) => {
                 let mut report = Diagnostics::new();
                 report.push(
-                    Diagnostic::error("parse", err.message.clone())
-                        .suggest(format!("at line {}, column {}", err.span.line, err.span.column)),
+                    Diagnostic::error("parse", err.message.clone()).suggest(format!(
+                        "at line {}, column {}",
+                        err.span.line, err.span.column
+                    )),
                 );
                 report
             }
@@ -107,9 +109,7 @@ pub fn compile(source: &str) -> Result<Module, Error> {
 /// The second verification is not ceremony. A pass that broke an invariant
 /// would otherwise hand the runtime a program the compiler already promised was
 /// safe, and §5 is explicit that no pass is safe by default.
-pub fn compile_optimized(
-    source: &str,
-) -> Result<(Module, agent_ir_passes::PipelineReport), Error> {
+pub fn compile_optimized(source: &str) -> Result<(Module, agent_ir_passes::PipelineReport), Error> {
     let mut module = compile(source)?;
     let report = agent_ir_passes::PassManager::default_pipeline().run(&mut module);
     let after = agent_ir_verifier::Verifier::new().verify_all(&module);

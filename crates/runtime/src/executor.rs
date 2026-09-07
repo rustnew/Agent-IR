@@ -97,12 +97,19 @@ impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RuntimeError::Environment(err) => write!(f, "{err}"),
-            RuntimeError::LoopGuard { target, repeats, action } => write!(
+            RuntimeError::LoopGuard {
+                target,
+                repeats,
+                action,
+            } => write!(
                 f,
                 "loop guard: `{target}` repeated identically {repeats} times, taking {action}"
             ),
             RuntimeError::IterationLimit { limit } => {
-                write!(f, "a loop exceeded its declared bound of {limit} iterations")
+                write!(
+                    f,
+                    "a loop exceeded its declared bound of {limit} iterations"
+                )
             }
             RuntimeError::Type(message) => write!(f, "type error at run time: {message}"),
             RuntimeError::Unsupported(what) => write!(f, "unsupported: {what}"),
@@ -220,7 +227,10 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
         }
         self.log.append(
             None,
-            EventKind::Started { function: plan.function.clone(), version: plan.version },
+            EventKind::Started {
+                function: plan.function.clone(),
+                version: plan.version,
+            },
         );
 
         let flow = self.run_plan(&plan.plan)?;
@@ -229,7 +239,12 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
             Flow::Continue => Value::Null,
         };
 
-        self.log.append(None, EventKind::Finished { result: result.clone() });
+        self.log.append(
+            None,
+            EventKind::Finished {
+                result: result.clone(),
+            },
+        );
         Ok(Outcome {
             result,
             state: self.state.clone(),
@@ -318,7 +333,10 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
             Err(err) => {
                 self.log.append(
                     Some(step.op),
-                    EventKind::Failed { target: call.target.clone(), error: err.to_string() },
+                    EventKind::Failed {
+                        target: call.target.clone(),
+                        error: err.to_string(),
+                    },
                 );
                 return Err(err.into());
             }
@@ -351,7 +369,11 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
         };
         Invocation {
             target,
-            args: step.operands.iter().map(|&id| self.state.get_or_null(id)).collect(),
+            args: step
+                .operands
+                .iter()
+                .map(|&id| self.state.get_or_null(id))
+                .collect(),
             attributes: step
                 .attributes
                 .iter()
@@ -522,7 +544,10 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
                     .to_string();
                 self.log.append(
                     Some(step.op),
-                    EventKind::Failed { target: "observation.error".into(), error: message },
+                    EventKind::Failed {
+                        target: "observation.error".into(),
+                        error: message,
+                    },
                 );
             }
             Builtin::Reject => {
@@ -601,13 +626,21 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
                         "`control.if` needs a boolean condition, got {condition}"
                     ))
                 })?;
-                let branch = if taken { Some(then) } else { otherwise.as_ref() };
+                let branch = if taken {
+                    Some(then)
+                } else {
+                    otherwise.as_ref()
+                };
                 match branch {
                     Some(plan) => self.run_region(step, plan),
                     None => Ok(Flow::Continue),
                 }
             }
-            Control::Loop { binding, max_iterations, body } => {
+            Control::Loop {
+                binding,
+                max_iterations,
+                body,
+            } => {
                 let iterable = step
                     .operands
                     .first()
@@ -621,7 +654,9 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
                 if items.len() as i64 > *max_iterations {
                     // Invariant I5 is a promise the program made. Breaking it at
                     // run time is an error, not something to quietly truncate.
-                    return Err(RuntimeError::IterationLimit { limit: *max_iterations });
+                    return Err(RuntimeError::IterationLimit {
+                        limit: *max_iterations,
+                    });
                 }
                 for (iteration, item) in items.into_iter().enumerate() {
                     if let Some(id) = binding {
@@ -637,7 +672,11 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
                 }
                 Ok(Flow::Continue)
             }
-            Control::While { condition, max_iterations, body } => {
+            Control::While {
+                condition,
+                max_iterations,
+                body,
+            } => {
                 for iteration in 0..*max_iterations {
                     let holds = match self.run_plan(condition)? {
                         Flow::Yield(values) => single(values).is_true().ok_or_else(|| {
@@ -660,7 +699,9 @@ impl<'a, E: Environment, L: EventLog, C: CheckpointStore> Executor<'a, E, L, C> 
                         Flow::Continue | Flow::Yield(_) => {}
                     }
                     if iteration + 1 == *max_iterations {
-                        return Err(RuntimeError::IterationLimit { limit: *max_iterations });
+                        return Err(RuntimeError::IterationLimit {
+                            limit: *max_iterations,
+                        });
                     }
                 }
                 Ok(Flow::Continue)

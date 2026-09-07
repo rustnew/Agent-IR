@@ -56,7 +56,5 @@ pub use env::{EnvError, Environment, Invocation, RecordingEnvironment};
 pub use event::{Event, EventKind, EventLog, InMemoryEventLog};
 pub use executor::{Executor, LoopGuardAction, Outcome, RuntimeError, RuntimePolicy};
 pub use recovery::{RecoveryManager, Resumption};
-pub use state::{
-    Checkpoint, CheckpointStore, ExecutionState, InMemoryCheckpointStore, Ledger,
-};
+pub use state::{Checkpoint, CheckpointStore, ExecutionState, InMemoryCheckpointStore, Ledger};
 pub use value::Value;

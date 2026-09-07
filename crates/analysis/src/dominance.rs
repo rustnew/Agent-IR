@@ -25,9 +25,10 @@ pub struct Frame {
 pub fn enclosing_chain(module: &Module, op: OperationId) -> Vec<Frame> {
     let mut chain = Vec::new();
     let mut current = op;
-    loop {
-        let Some(block) = module.op(current).parent else { break };
-        let Some(position) = module.position_in_block(current) else { break };
+    while let Some(block) = module.op(current).parent {
+        let Some(position) = module.position_in_block(current) else {
+            break;
+        };
         chain.push(Frame { block, position });
         match module.region(module.block(block).parent).parent {
             Some(parent) => current = parent,

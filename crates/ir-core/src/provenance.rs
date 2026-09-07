@@ -50,7 +50,9 @@ impl std::str::FromStr for Source {
 }
 
 /// Whether a value is still to be trusted (§8.5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
+)]
 pub enum Validity {
     /// Still trustworthy.
     #[default]
@@ -117,17 +119,27 @@ impl Provenance {
 
     /// Provenance for a value returned by a tool.
     pub fn from_tool() -> Self {
-        Provenance { source: Source::Tool, ..Provenance::derived() }
+        Provenance {
+            source: Source::Tool,
+            ..Provenance::derived()
+        }
     }
 
     /// Provenance for a value supplied by the user.
     pub fn from_user() -> Self {
-        Provenance { source: Source::User, ..Provenance::derived() }
+        Provenance {
+            source: Source::User,
+            ..Provenance::derived()
+        }
     }
 
     /// Provenance for a value proposed by the LLM, with its confidence.
     pub fn from_llm(confidence: f64) -> Self {
-        Provenance { source: Source::Llm, confidence, ..Provenance::derived() }
+        Provenance {
+            source: Source::Llm,
+            confidence,
+            ..Provenance::derived()
+        }
     }
 
     /// Whether the value needs an explicit check before feeding a non-`Pure`

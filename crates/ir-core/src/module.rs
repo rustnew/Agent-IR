@@ -14,7 +14,9 @@ use crate::types::Type;
 use std::fmt;
 
 /// A fully qualified operation name, `dialect.name`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct OpName {
     /// The dialect half, e.g. `agent`.
     pub dialect: String,
@@ -25,7 +27,10 @@ pub struct OpName {
 impl OpName {
     /// Builds a name from its two halves.
     pub fn new(dialect: impl Into<String>, name: impl Into<String>) -> Self {
-        OpName { dialect: dialect.into(), name: name.into() }
+        OpName {
+            dialect: dialect.into(),
+            name: name.into(),
+        }
     }
 
     /// Whether this is the given `dialect.name`.
@@ -358,14 +363,23 @@ impl Module {
     /// Creates a region, optionally owned by an operation.
     pub fn create_region(&mut self, parent: Option<OperationId>) -> RegionId {
         let id = RegionId::from_index(self.regions.len());
-        self.regions.push(Region { id, blocks: Vec::new(), parent });
+        self.regions.push(Region {
+            id,
+            blocks: Vec::new(),
+            parent,
+        });
         id
     }
 
     /// Creates a block at the end of a region.
     pub fn create_block(&mut self, region: RegionId) -> BlockId {
         let id = BlockId::from_index(self.blocks.len());
-        self.blocks.push(Block { id, args: Vec::new(), ops: Vec::new(), parent: region });
+        self.blocks.push(Block {
+            id,
+            args: Vec::new(),
+            ops: Vec::new(),
+            parent: region,
+        });
         self.region_mut(region).blocks.push(id);
         id
     }
@@ -444,14 +458,20 @@ impl Module {
 
     /// Appends an operation to the end of a block.
     pub fn append_to_block(&mut self, block: BlockId, op: OperationId) {
-        debug_assert!(self.op(op).parent.is_none(), "operation is already in a block");
+        debug_assert!(
+            self.op(op).parent.is_none(),
+            "operation is already in a block"
+        );
         self.op_mut(op).parent = Some(block);
         self.block_mut(block).ops.push(op);
     }
 
     /// Inserts an operation at a position in a block.
     pub fn insert_in_block(&mut self, block: BlockId, index: usize, op: OperationId) {
-        debug_assert!(self.op(op).parent.is_none(), "operation is already in a block");
+        debug_assert!(
+            self.op(op).parent.is_none(),
+            "operation is already in a block"
+        );
         self.op_mut(op).parent = Some(block);
         self.block_mut(block).ops.insert(index, op);
     }
@@ -459,7 +479,9 @@ impl Module {
     /// Detaches an operation from its block without erasing it.
     pub fn detach(&mut self, op: OperationId) {
         if let Some(block) = self.op(op).parent {
-            self.block_mut(block).ops.retain(|&candidate| candidate != op);
+            self.block_mut(block)
+                .ops
+                .retain(|&candidate| candidate != op);
             self.op_mut(op).parent = None;
         }
     }
@@ -482,7 +504,10 @@ impl Module {
     /// The position of an operation inside its block.
     pub fn position_in_block(&self, op: OperationId) -> Option<usize> {
         let block = self.op(op).parent?;
-        self.block(block).ops.iter().position(|&candidate| candidate == op)
+        self.block(block)
+            .ops
+            .iter()
+            .position(|&candidate| candidate == op)
     }
 
     /// Rewrites every use of `from` into a use of `to`.

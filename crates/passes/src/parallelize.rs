@@ -161,7 +161,11 @@ fn wrap(module: &mut Module, block: BlockId, group: &[OperationId], report: &mut
         .iter()
         .map(|&value| {
             let inner = module.value(value);
-            (inner.name.clone(), inner.ty.clone(), inner.provenance.clone())
+            (
+                inner.name.clone(),
+                inner.ty.clone(),
+                inner.provenance.clone(),
+            )
         })
         .collect();
 
@@ -275,7 +279,10 @@ mod tests {
         let region_end = printed.find("control.yield").unwrap();
         let region = &printed[region_start..region_end];
         for literal in ["inspect_model", "inspect_hardware", "inspect_dataset"] {
-            assert!(region.contains(literal), "{literal} not in region:\n{printed}");
+            assert!(
+                region.contains(literal),
+                "{literal} not in region:\n{printed}"
+            );
         }
         assert!(!region.contains("profile"));
     }
@@ -293,8 +300,7 @@ mod tests {
 
     #[test]
     fn refuses_to_group_a_producer_with_its_consumer() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   agent.func "f" {
   ^bb0(%x: !core.int):
     %a = agent.action "one"(%x) {effect = #pure} : !core.int
@@ -302,15 +308,13 @@ mod tests {
     agent.return(%b) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed);
     }
 
     #[test]
     fn refuses_to_group_operations_that_conflict_on_a_scope() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   capability @db scope("db") grants(read_external, write_external)
 
   agent.func "f" {
@@ -320,15 +324,13 @@ mod tests {
     agent.return(%seen) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed, "I3 forbids this grouping");
     }
 
     #[test]
     fn groups_reads_of_different_scopes() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @db scope("db") grants(read_external)
   capability @cache scope("cache") grants(read_external)
 
@@ -339,16 +341,14 @@ mod tests {
     agent.return(%a) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(report.changed);
         assert!(module.to_string().contains("control.parallel"));
     }
 
     #[test]
     fn never_moves_a_verify_away_from_what_it_guards() {
-        let (module, _) = run(
-            r#"module @m version(0) {
+        let (module, _) = run(r#"module @m version(0) {
   capability @pay scope("ledger") grants(irreversible)
 
   agent.func "f" {
@@ -358,16 +358,14 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         let printed = module.to_string();
         assert!(!printed.contains("control.parallel"), "{printed}");
     }
 
     #[test]
     fn an_operation_with_no_escaping_result_needs_no_yield() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @log scope("log") grants(write_external)
   capability @audit scope("audit") grants(write_external)
 
@@ -378,8 +376,7 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(report.changed);
         let printed = module.to_string();
         assert!(printed.contains("control.parallel"));
@@ -398,8 +395,7 @@ mod tests {
 
     #[test]
     fn nested_blocks_are_scheduled_too() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @host scope("host") grants(read_external)
 
   agent.func "f" {
@@ -413,8 +409,7 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(report.changed);
         assert!(module.to_string().contains("control.parallel"));
     }

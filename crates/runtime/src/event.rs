@@ -89,8 +89,15 @@ impl fmt::Display for EventKind {
             EventKind::Effect { target, effect, .. } => write!(f, "{target} [{effect}]"),
             EventKind::EffectReplayed { target, .. } => write!(f, "{target} [replayed]"),
             EventKind::Failed { target, error } => write!(f, "{target} failed: {error}"),
-            EventKind::LoopGuard { target, repeats, action } => {
-                write!(f, "loop guard on {target} after {repeats} repeats: {action}")
+            EventKind::LoopGuard {
+                target,
+                repeats,
+                action,
+            } => {
+                write!(
+                    f,
+                    "loop guard on {target} after {repeats} repeats: {action}"
+                )
             }
             EventKind::Checkpoint { sequence, effects } => {
                 write!(f, "checkpoint {sequence} ({effects} effect(s))")
@@ -212,7 +219,10 @@ mod tests {
         for i in 0..5 {
             let sequence = log.append(
                 None,
-                EventKind::Checkpoint { sequence: i, effects: 0 },
+                EventKind::Checkpoint {
+                    sequence: i,
+                    effects: 0,
+                },
             );
             assert_eq!(sequence, i);
         }
@@ -223,7 +233,12 @@ mod tests {
     fn since_returns_only_what_came_after() {
         let mut log = InMemoryEventLog::new();
         for _ in 0..4 {
-            log.append(None, EventKind::Finished { result: Value::Null });
+            log.append(
+                None,
+                EventKind::Finished {
+                    result: Value::Null,
+                },
+            );
         }
         assert_eq!(log.since(1).len(), 2);
     }
@@ -233,7 +248,10 @@ mod tests {
         let mut log = InMemoryEventLog::new();
         log.append(
             None,
-            EventKind::Started { function: "f".into(), version: 3 },
+            EventKind::Started {
+                function: "f".into(),
+                version: 3,
+            },
         );
         log.append(
             None,

@@ -113,7 +113,10 @@ impl<'a> Lexer<'a> {
     }
 
     fn span(&self) -> Span {
-        Span { line: self.line, column: self.column }
+        Span {
+            line: self.line,
+            column: self.column,
+        }
     }
 
     fn peek(&self) -> Option<char> {
@@ -137,7 +140,10 @@ impl<'a> Lexer<'a> {
     }
 
     fn error(&self, message: impl Into<String>, span: Span) -> LexError {
-        LexError { message: message.into(), span }
+        LexError {
+            message: message.into(),
+            span,
+        }
     }
 
     fn skip_trivia(&mut self) {
@@ -183,9 +189,7 @@ impl<'a> Lexer<'a> {
     /// Reads a dotted name, as used by type names: `core.tensor`.
     fn read_dotted(&mut self) -> String {
         let mut out = self.read_ident();
-        while self.peek() == Some('.')
-            && self.peek_at(1).is_some_and(Self::is_ident_start)
-        {
+        while self.peek() == Some('.') && self.peek_at(1).is_some_and(Self::is_ident_start) {
             self.bump();
             out.push('.');
             out.push_str(&self.read_ident());
@@ -289,7 +293,10 @@ impl<'a> Lexer<'a> {
             self.skip_trivia();
             let span = self.span();
             let Some(c) = self.peek() else {
-                tokens.push(Token { tok: Tok::Eof, span });
+                tokens.push(Token {
+                    tok: Tok::Eof,
+                    span,
+                });
                 return Ok(tokens);
             };
 
@@ -382,14 +389,17 @@ mod tests {
 
     #[test]
     fn distinguishes_ints_from_floats() {
-        assert_eq!(kinds("1 1.5 -2 -2.5 1e3 1.0e-2"), vec![
-            Tok::Int(1),
-            Tok::Float(1.5),
-            Tok::Int(-2),
-            Tok::Float(-2.5),
-            Tok::Float(1000.0),
-            Tok::Float(0.01),
-        ]);
+        assert_eq!(
+            kinds("1 1.5 -2 -2.5 1e3 1.0e-2"),
+            vec![
+                Tok::Int(1),
+                Tok::Float(1.5),
+                Tok::Int(-2),
+                Tok::Float(-2.5),
+                Tok::Float(1000.0),
+                Tok::Float(0.01),
+            ]
+        );
     }
 
     #[test]

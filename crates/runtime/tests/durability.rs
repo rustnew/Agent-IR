@@ -7,8 +7,8 @@ use agent_ir_parser::parse_module;
 use agent_ir_passes::PassManager;
 use agent_ir_runtime::{
     CheckpointStore, EnvError, EventLog, Executor, InMemoryCheckpointStore, InMemoryEventLog,
-    Invocation, LoopGuardAction,
-    RecordingEnvironment, RecoveryManager, RuntimeError, RuntimePolicy, Value,
+    Invocation, LoopGuardAction, RecordingEnvironment, RecoveryManager, RuntimeError,
+    RuntimePolicy, Value,
 };
 use agent_ir_verifier::Verifier;
 
@@ -28,7 +28,10 @@ fn compile(source: &str, function: &str, optimize: bool) -> (Module, ExecutionPl
     if optimize {
         PassManager::default_pipeline().run(&mut module);
         let after = Verifier::new().verify_all(&module);
-        assert!(!after.has_errors(), "optimizing broke it:\n{module}\n{after}");
+        assert!(
+            !after.has_errors(),
+            "optimizing broke it:\n{module}\n{after}"
+        );
     }
     let plan = Scheduler::new(GenericRuntime)
         .schedule(&module, function)
@@ -43,7 +46,11 @@ fn candidates(count: usize) -> Value {
 fn benchmarking_environment() -> RecordingEnvironment {
     RecordingEnvironment::new()
         .on("benchmark", |call: &Invocation| {
-            let name = call.arg(0).and_then(Value::as_str).unwrap_or("?").to_string();
+            let name = call
+                .arg(0)
+                .and_then(Value::as_str)
+                .unwrap_or("?")
+                .to_string();
             let latency = 100.0 + (name.len() as f64);
             Ok(Value::record([
                 ("latency", Value::Float(latency)),
@@ -156,12 +163,19 @@ fn a_loop_that_exceeds_its_declared_bound_is_an_error() {
     let error = Executor::new(&mut env, &mut log, &mut checkpoints)
         .run(&plan, vec![candidates(5)])
         .unwrap_err();
-    assert!(matches!(error, RuntimeError::IterationLimit { limit: 2 }), "{error}");
+    assert!(
+        matches!(error, RuntimeError::IterationLimit { limit: 2 }),
+        "{error}"
+    );
 }
 
 #[test]
 fn the_event_log_points_every_effect_back_at_its_operation() {
-    let (module, plan) = compile(&example("durable_benchmark.air"), "benchmark_candidates", false);
+    let (module, plan) = compile(
+        &example("durable_benchmark.air"),
+        "benchmark_candidates",
+        false,
+    );
     let mut env = benchmarking_environment();
     let mut log = InMemoryEventLog::new();
     let mut checkpoints = InMemoryCheckpointStore::new();
@@ -216,9 +230,16 @@ fn optimizing_does_not_change_what_the_program_does() {
     let (plain, optimized) = trace_both_ways(
         &example("simple_agent.air"),
         "inspect_and_profile",
-        vec![Value::Str("m".into()), Value::Str("h".into()), Value::Str("d".into())],
+        vec![
+            Value::Str("m".into()),
+            Value::Str("h".into()),
+            Value::Str("d".into()),
+        ],
     );
-    assert_eq!(plain, optimized, "optimizing changed the observable behaviour");
+    assert_eq!(
+        plain, optimized,
+        "optimizing changed the observable behaviour"
+    );
     assert_eq!(plain.last().unwrap(), "=> 6");
 }
 
@@ -264,7 +285,11 @@ fn optimizing_never_removes_an_effect_that_reached_the_world() {
 
 #[test]
 fn a_crash_mid_run_loses_nothing_and_repeats_no_write() {
-    let (_, plan) = compile(&example("durable_benchmark.air"), "benchmark_candidates", true);
+    let (_, plan) = compile(
+        &example("durable_benchmark.air"),
+        "benchmark_candidates",
+        true,
+    );
     let all = candidates(40);
 
     // --- first run: the environment dies after the 15th recorded result.
@@ -272,14 +297,26 @@ fn a_crash_mid_run_loses_nothing_and_repeats_no_write() {
     let mut log = InMemoryEventLog::new();
     let mut checkpoints = InMemoryCheckpointStore::new();
     let error = Executor::new(&mut env, &mut log, &mut checkpoints)
-        .with_policy(RuntimePolicy { checkpoint_every: 5, ..RuntimePolicy::default() })
+        .with_policy(RuntimePolicy {
+            checkpoint_every: 5,
+            ..RuntimePolicy::default()
+        })
         .run(&plan, vec![all.clone()])
         .unwrap_err();
-    assert!(matches!(error, RuntimeError::Environment(EnvError::Crashed(_))), "{error}");
+    assert!(
+        matches!(error, RuntimeError::Environment(EnvError::Crashed(_))),
+        "{error}"
+    );
 
     let writes_before = env.writing_calls().len();
-    assert_eq!(writes_before, 15, "the fifteenth write happened, then the crash");
-    assert!(checkpoints.latest().is_some(), "checkpoints should have been taken");
+    assert_eq!(
+        writes_before, 15,
+        "the fifteenth write happened, then the crash"
+    );
+    assert!(
+        checkpoints.latest().is_some(),
+        "checkpoints should have been taken"
+    );
 
     // --- recovery: last checkpoint, plus the effects the log knows about.
     let resumption = RecoveryManager::new().resume(&log, &checkpoints);
@@ -297,7 +334,10 @@ fn a_crash_mid_run_loses_nothing_and_repeats_no_write() {
     // world where nothing ever happened.
     env.crash_after_writes = None;
     let outcome = Executor::new(&mut env, &mut log, &mut checkpoints)
-        .with_policy(RuntimePolicy { checkpoint_every: 5, ..RuntimePolicy::default() })
+        .with_policy(RuntimePolicy {
+            checkpoint_every: 5,
+            ..RuntimePolicy::default()
+        })
         .resuming_from(resumption.state)
         .run(&plan, vec![all])
         .unwrap();
@@ -319,19 +359,29 @@ fn a_crash_mid_run_loses_nothing_and_repeats_no_write() {
     // The benchmark is a read. Replaying it is free, so recovery simply re-runs
     // it — which is exactly what `ReadExternal` licenses.
     let reruns = env.calls.iter().filter(|c| c.target == "benchmark").count();
-    assert_eq!(reruns, 55, "15 before the crash, then all 40 again on replay");
+    assert_eq!(
+        reruns, 55,
+        "15 before the crash, then all 40 again on replay"
+    );
 }
 
 #[test]
 fn resuming_with_no_checkpoint_rebuilds_from_the_log_alone() {
-    let (_, plan) = compile(&example("durable_benchmark.air"), "benchmark_candidates", false);
+    let (_, plan) = compile(
+        &example("durable_benchmark.air"),
+        "benchmark_candidates",
+        false,
+    );
     let all = candidates(6);
 
     let mut env = benchmarking_environment().crashing_after_writes(3);
     let mut log = InMemoryEventLog::new();
     let mut checkpoints = InMemoryCheckpointStore::new();
     Executor::new(&mut env, &mut log, &mut checkpoints)
-        .with_policy(RuntimePolicy { checkpoint_every: 0, ..RuntimePolicy::default() })
+        .with_policy(RuntimePolicy {
+            checkpoint_every: 0,
+            ..RuntimePolicy::default()
+        })
         .run(&plan, vec![all.clone()])
         .unwrap_err();
     assert!(checkpoints.latest().is_none(), "checkpoints were disabled");
@@ -351,7 +401,11 @@ fn resuming_with_no_checkpoint_rebuilds_from_the_log_alone() {
 
 #[test]
 fn a_second_run_from_a_complete_ledger_touches_nothing() {
-    let (_, plan) = compile(&example("durable_benchmark.air"), "benchmark_candidates", false);
+    let (_, plan) = compile(
+        &example("durable_benchmark.air"),
+        "benchmark_candidates",
+        false,
+    );
     let all = candidates(5);
 
     let mut env = benchmarking_environment();
@@ -409,7 +463,9 @@ fn an_action_repeating_identically_trips_the_loop_guard() {
         .unwrap_err();
 
     match error {
-        RuntimeError::LoopGuard { repeats, action, .. } => {
+        RuntimeError::LoopGuard {
+            repeats, action, ..
+        } => {
             assert_eq!(repeats, 6);
             assert_eq!(action, LoopGuardAction::ChangeStrategy);
         }
@@ -423,16 +479,26 @@ fn an_action_repeating_identically_trips_the_loop_guard() {
 
 #[test]
 fn distinct_arguments_never_trip_the_guard() {
-    let (_, plan) = compile(&example("durable_benchmark.air"), "benchmark_candidates", false);
+    let (_, plan) = compile(
+        &example("durable_benchmark.air"),
+        "benchmark_candidates",
+        false,
+    );
     let mut env = benchmarking_environment();
     let mut log = InMemoryEventLog::new();
     let mut checkpoints = InMemoryCheckpointStore::new();
 
     let outcome = Executor::new(&mut env, &mut log, &mut checkpoints)
-        .with_policy(RuntimePolicy { repeat_threshold: 3, ..RuntimePolicy::default() })
+        .with_policy(RuntimePolicy {
+            repeat_threshold: 3,
+            ..RuntimePolicy::default()
+        })
         .run(&plan, vec![candidates(30)])
         .unwrap();
-    assert_eq!(outcome.effects, 60, "30 benchmarks and 30 records, all distinct");
+    assert_eq!(
+        outcome.effects, 60,
+        "30 benchmarks and 30 records, all distinct"
+    );
 }
 
 // -------------------------------------------------------- the whole pipeline
@@ -454,7 +520,10 @@ fn the_specification_example_runs_end_to_end() {
             let name = call.arg(0).and_then(Value::as_str).unwrap_or("?");
             Ok(Value::record([
                 ("latency", Value::Float(10.0)),
-                ("accuracy", Value::Float(if name == "c0" { 0.5 } else { 0.001 })),
+                (
+                    "accuracy",
+                    Value::Float(if name == "c0" { 0.5 } else { 0.001 }),
+                ),
             ]))
         })
         .returning("select", Value::Str("c1".into()));
@@ -462,7 +531,10 @@ fn the_specification_example_runs_end_to_end() {
     let mut log = InMemoryEventLog::new();
     let mut checkpoints = InMemoryCheckpointStore::new();
     let outcome = Executor::new(&mut env, &mut log, &mut checkpoints)
-        .run(&plan, vec![Value::Str("model".into()), Value::Str("hw".into())])
+        .run(
+            &plan,
+            vec![Value::Str("model".into()), Value::Str("hw".into())],
+        )
         .unwrap();
 
     assert_eq!(outcome.result, Value::Str("c1".into()));
@@ -485,7 +557,13 @@ fn the_specification_example_runs_end_to_end() {
         .collect();
     assert_eq!(
         effects,
-        vec!["profile", "generate_candidates", "benchmark", "benchmark", "select"],
+        vec![
+            "profile",
+            "generate_candidates",
+            "benchmark",
+            "benchmark",
+            "select"
+        ],
         "the audit trail should hold exactly the effects that happened"
     );
 }
@@ -512,7 +590,10 @@ fn an_environment_missing_a_tool_fails_loudly() {
     let error = Executor::new(&mut env, &mut log, &mut checkpoints)
         .run(&plan, vec![Value::Str("u".into())])
         .unwrap_err();
-    assert!(matches!(error, RuntimeError::Environment(EnvError::Unknown(_))), "{error}");
+    assert!(
+        matches!(error, RuntimeError::Environment(EnvError::Unknown(_))),
+        "{error}"
+    );
     assert!(log
         .entries()
         .iter()

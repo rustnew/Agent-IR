@@ -46,7 +46,10 @@ pub struct PassReport {
 impl PassReport {
     /// An empty report for a pass that has not changed anything yet.
     pub fn new(pass: &str) -> Self {
-        PassReport { pass: pass.to_string(), ..Default::default() }
+        PassReport {
+            pass: pass.to_string(),
+            ..Default::default()
+        }
     }
 
     /// Records a removed operation.
@@ -124,7 +127,11 @@ impl fmt::Display for PipelineReport {
             "{} round(s), {} edit(s){}",
             self.rounds,
             self.edit_count(),
-            if self.hit_iteration_cap { ", stopped at the iteration cap" } else { "" }
+            if self.hit_iteration_cap {
+                ", stopped at the iteration cap"
+            } else {
+                ""
+            }
         )?;
         for report in self.reports.iter().filter(|r| r.changed) {
             writeln!(f, "  {report}")?;
@@ -142,7 +149,10 @@ pub struct PassManager {
 impl PassManager {
     /// An empty pipeline.
     pub fn new() -> Self {
-        PassManager { passes: Vec::new(), max_rounds: 8 }
+        PassManager {
+            passes: Vec::new(),
+            max_rounds: 8,
+        }
     }
 
     /// The default v0.1 pipeline.
@@ -204,7 +214,10 @@ impl Default for PassManager {
 impl fmt::Debug for PassManager {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PassManager")
-            .field("passes", &self.passes.iter().map(|p| p.name()).collect::<Vec<_>>())
+            .field(
+                "passes",
+                &self.passes.iter().map(|p| p.name()).collect::<Vec<_>>(),
+            )
             .field("max_rounds", &self.max_rounds)
             .finish()
     }

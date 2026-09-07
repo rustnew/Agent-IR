@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn repo(relative: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(relative)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(relative)
 }
 
 fn agent_ir(args: &[&str]) -> Output {
@@ -58,7 +60,11 @@ fn fmt_without_files_says_so() {
 
 #[test]
 fn verify_accepts_the_examples() {
-    for name in ["optimize_inference.air", "simple_agent.air", "durable_benchmark.air"] {
+    for name in [
+        "optimize_inference.air",
+        "simple_agent.air",
+        "durable_benchmark.air",
+    ] {
         let output = agent_ir(&["verify", &example(name)]);
         assert!(output.status.success(), "{name}:\n{}", stderr(&output));
         assert!(stdout(&output).contains("accepted"));
@@ -82,9 +88,15 @@ fn verify_fails_with_a_diagnostic_and_a_nonzero_exit() {
     .unwrap();
 
     let output = agent_ir(&["verify", path.to_str().unwrap()]);
-    assert!(!output.status.success(), "an unguarded deletion must not pass");
+    assert!(
+        !output.status.success(),
+        "an unguarded deletion must not pass"
+    );
     assert!(stdout(&output).contains("I2"), "{}", stdout(&output));
-    assert!(stdout(&output).contains("help:"), "a rejection must say what to do");
+    assert!(
+        stdout(&output).contains("help:"),
+        "a rejection must say what to do"
+    );
 }
 
 #[test]
@@ -162,7 +174,10 @@ fn plan_shows_idempotency_keys_where_they_are_required() {
     let output = agent_ir(&["plan", &example("durable_benchmark.air")]);
     assert!(output.status.success(), "{}", stderr(&output));
     let text = stdout(&output);
-    assert!(text.contains("idempotency:"), "a write needs a key:\n{text}");
+    assert!(
+        text.contains("idempotency:"),
+        "a write needs a key:\n{text}"
+    );
     assert!(text.contains("up to 40 iterations"), "{text}");
 }
 
@@ -178,7 +193,11 @@ fn plan_can_emit_json() {
 fn plan_asks_which_function_when_it_cannot_tell() {
     let output = agent_ir(&["plan", "--function", "nope", &example("simple_agent.air")]);
     assert!(!output.status.success());
-    assert!(stderr(&output).contains("inspect_and_profile"), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("inspect_and_profile"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 // ----------------------------------------------------------------------- run
@@ -200,7 +219,10 @@ fn run_executes_the_program_against_stubbed_tools() {
     ]);
     assert!(output.status.success(), "{}", stderr(&output));
     let text = stdout(&output);
-    assert!(text.contains("inspect_model [#read_external<host>]"), "{text}");
+    assert!(
+        text.contains("inspect_model [#read_external<host>]"),
+        "{text}"
+    );
     assert!(text.contains("4 effect(s) reached the world"), "{text}");
     assert!(text.contains("latency_ms"), "{text}");
 }
@@ -218,7 +240,11 @@ fn run_reports_a_missing_tool_instead_of_pretending() {
         "\"d\"",
     ]);
     assert!(!output.status.success());
-    assert!(stderr(&output).contains("no such target"), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("no such target"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
@@ -238,7 +264,10 @@ fn dialects_lists_all_six() {
     for dialect in ["core", "agent", "control", "tool", "memory", "observation"] {
         assert!(text.contains(dialect), "{dialect} missing from:\n{text}");
     }
-    assert!(text.contains("effects: pure"), "the effect column matters:\n{text}");
+    assert!(
+        text.contains("effects: pure"),
+        "the effect column matters:\n{text}"
+    );
 }
 
 #[test]
@@ -249,7 +278,10 @@ fn passes_lists_the_pipeline_in_order() {
     let dedup = text.find("tool-call-deduplication").unwrap();
     let dae = text.find("dead-action-elimination").unwrap();
     let par = text.find("parallelization").unwrap();
-    assert!(dedup < dae && dae < par, "the pipeline order should be visible:\n{text}");
+    assert!(
+        dedup < dae && dae < par,
+        "the pipeline order should be visible:\n{text}"
+    );
 }
 
 #[test]

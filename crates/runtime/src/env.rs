@@ -231,7 +231,11 @@ impl Environment for RecordingEnvironment {
 
     fn memory_read(&mut self, call: &Invocation) -> Result<Value, EnvError> {
         self.calls.push(call.clone());
-        Ok(self.memory.get(&call.target).cloned().unwrap_or(Value::Null))
+        Ok(self
+            .memory
+            .get(&call.target)
+            .cloned()
+            .unwrap_or(Value::Null))
     }
 
     fn memory_write(&mut self, call: &Invocation) -> Result<Value, EnvError> {
@@ -318,7 +322,9 @@ mod tests {
         let mut write = invocation("k", Effect::write("mem"));
         write.args = vec![Value::Str("v".into())];
         env.memory_write(&write).unwrap();
-        let read = env.memory_read(&invocation("k", Effect::read("mem"))).unwrap();
+        let read = env
+            .memory_read(&invocation("k", Effect::read("mem")))
+            .unwrap();
         assert_eq!(read, Value::Str("v".into()));
     }
 }

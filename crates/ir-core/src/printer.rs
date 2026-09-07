@@ -54,7 +54,11 @@ pub fn print_module(module: &Module) -> String {
         out.push('\n');
     }
 
-    let mut printer = Printer { module, names: &names, out: &mut out };
+    let mut printer = Printer {
+        module,
+        names: &names,
+        out: &mut out,
+    };
     printer.print_region_body(module.body(), 1);
     out.push_str("}\n");
     out
@@ -64,7 +68,11 @@ pub fn print_module(module: &Module) -> String {
 pub fn print_operation(module: &Module, op: OperationId) -> String {
     let names = NameTable::build(module);
     let mut out = String::new();
-    let mut printer = Printer { module, names: &names, out: &mut out };
+    let mut printer = Printer {
+        module,
+        names: &names,
+        out: &mut out,
+    };
     printer.print_op(op, 0);
     out.trim_end().to_string()
 }
@@ -120,7 +128,10 @@ impl NameTable {
     }
 
     fn value(&self, id: ValueId) -> &str {
-        self.names.get(&id).map(String::as_str).unwrap_or("<detached>")
+        self.names
+            .get(&id)
+            .map(String::as_str)
+            .unwrap_or("<detached>")
     }
 
     fn block(&self, id: BlockId) -> &str {
@@ -161,12 +172,7 @@ impl Printer<'_> {
                             self.out.push_str(", ");
                         }
                         let value = self.module.value(*arg);
-                        let _ = write!(
-                            self.out,
-                            "%{}: {}",
-                            self.names.value(*arg),
-                            value.ty
-                        );
+                        let _ = write!(self.out, "%{}: {}", self.names.value(*arg), value.ty);
                     }
                     self.out.push(')');
                 }

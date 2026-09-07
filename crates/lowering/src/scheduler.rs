@@ -45,7 +45,11 @@ pub struct Estimator {
 impl Default for Estimator {
     fn default() -> Self {
         Estimator {
-            tool_call: Cost { tool_calls: 1, latency_ms: 250, ..Cost::ZERO },
+            tool_call: Cost {
+                tool_calls: 1,
+                latency_ms: 250,
+                ..Cost::ZERO
+            },
             inference: Cost {
                 llm_calls: 1,
                 input_tokens: 1_000,
@@ -53,8 +57,15 @@ impl Default for Estimator {
                 latency_ms: 2_000,
                 ..Cost::ZERO
             },
-            memory: Cost { tool_calls: 1, latency_ms: 20, ..Cost::ZERO },
-            builtin: Cost { latency_ms: 1, ..Cost::ZERO },
+            memory: Cost {
+                tool_calls: 1,
+                latency_ms: 20,
+                ..Cost::ZERO
+            },
+            builtin: Cost {
+                latency_ms: 1,
+                ..Cost::ZERO
+            },
         }
     }
 }
@@ -71,12 +82,7 @@ impl Estimator {
     }
 
     /// The cost of one operation, with any `est_*` attribute applied.
-    pub fn for_operation(
-        &self,
-        module: &Module,
-        op: OperationId,
-        target: &RuntimeTarget,
-    ) -> Cost {
+    pub fn for_operation(&self, module: &Module, op: OperationId, target: &RuntimeTarget) -> Cost {
         let mut cost = self.for_target(target);
         let operation = module.op(op);
         let read = |key: &str| operation.int_attr(key).and_then(|v| u64::try_from(v).ok());
@@ -152,17 +158,16 @@ impl<B: Backend> Scheduler<B> {
     ///
     /// Fails only when an operation has no lowering; a budget that cannot be
     /// met degrades the strategy and reports it rather than refusing.
-    pub fn schedule(
-        &self,
-        module: &Module,
-        function: &str,
-    ) -> Result<ExecutionPlan, Diagnostics> {
+    pub fn schedule(&self, module: &Module, function: &str) -> Result<ExecutionPlan, Diagnostics> {
         let mut errors = Diagnostics::new();
 
         let Some(func) = module.function(function) else {
             errors.push(
-                Diagnostic::error("schedule", format!("no `agent.func \"{function}\"` in this module"))
-                    .suggest("check the function name, or list the module's functions first"),
+                Diagnostic::error(
+                    "schedule",
+                    format!("no `agent.func \"{function}\"` in this module"),
+                )
+                .suggest("check the function name, or list the module's functions first"),
             );
             return Err(errors);
         };
@@ -184,7 +189,9 @@ impl<B: Backend> Scheduler<B> {
         let mut degradation = Degradation::None;
 
         for _ in 0..self.max_degradations {
-            let Some(overrun) = budget.overrun(&estimated) else { break };
+            let Some(overrun) = budget.overrun(&estimated) else {
+                break;
+            };
             if reduce_iterations(&mut plan) {
                 degradation = Degradation::ReducedIterations;
                 estimated = estimate(&plan);
@@ -345,7 +352,10 @@ impl<B: Backend> Scheduler<B> {
             self.schedule_block(module, block, effects, errors)
         };
 
-        let control = match (operation.name.dialect.as_str(), operation.name.name.as_str()) {
+        let control = match (
+            operation.name.dialect.as_str(),
+            operation.name.name.as_str(),
+        ) {
             ("control", "if") => Control::If {
                 then: plan_of(regions[0], errors),
                 otherwise: regions.get(1).map(|&r| plan_of(r, errors)),
@@ -363,7 +373,9 @@ impl<B: Backend> Scheduler<B> {
                 max_iterations: operation.int_attr("max_iterations").unwrap_or(1),
                 body: plan_of(regions[1], errors),
             },
-            ("control", "parallel") => Control::Parallel { body: plan_of(regions[0], errors) },
+            ("control", "parallel") => Control::Parallel {
+                body: plan_of(regions[0], errors),
+            },
             _ => return None,
         };
         Some(Box::new(control))
@@ -397,14 +409,25 @@ fn control_cost(control: &Control, own: Cost) -> Cost {
             // condition is evaluated.
             let taken = estimate(then);
             let other = otherwise.as_ref().map(estimate).unwrap_or(Cost::ZERO);
-            own.then(if taken.latency_ms >= other.latency_ms { taken } else { other })
+            own.then(if taken.latency_ms >= other.latency_ms {
+                taken
+            } else {
+                other
+            })
         }
-        Control::Loop { body, max_iterations, .. } => {
-            own.then(repeat(estimate(body), *max_iterations))
-        }
-        Control::While { condition, body, max_iterations } => {
-            own.then(repeat(estimate(condition).then(estimate(body)), *max_iterations))
-        }
+        Control::Loop {
+            body,
+            max_iterations,
+            ..
+        } => own.then(repeat(estimate(body), *max_iterations)),
+        Control::While {
+            condition,
+            body,
+            max_iterations,
+        } => own.then(repeat(
+            estimate(condition).then(estimate(body)),
+            *max_iterations,
+        )),
         Control::Parallel { body } => own.then(estimate(body)),
     }
 }
@@ -431,8 +454,16 @@ fn reduce_iterations(plan: &mut Plan) -> bool {
             let own = step.estimated;
             if let Some(control) = step.control.as_deref_mut() {
                 match control {
-                    Control::Loop { max_iterations, body, .. }
-                    | Control::While { max_iterations, body, .. } => {
+                    Control::Loop {
+                        max_iterations,
+                        body,
+                        ..
+                    }
+                    | Control::While {
+                        max_iterations,
+                        body,
+                        ..
+                    } => {
                         if *max_iterations > 1 {
                             *max_iterations /= 2;
                             reduced = true;
@@ -449,7 +480,10 @@ fn reduce_iterations(plan: &mut Plan) -> bool {
                 }
                 // Re-fold the nested cost with the step's own base cost, which
                 // the builtin estimate supplies unchanged.
-                let base = Cost { latency_ms: own.latency_ms.min(1), ..Cost::ZERO };
+                let base = Cost {
+                    latency_ms: own.latency_ms.min(1),
+                    ..Cost::ZERO
+                };
                 step.estimated = control_cost(step.control.as_deref().unwrap(), base);
             }
         }

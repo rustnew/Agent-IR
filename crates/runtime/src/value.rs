@@ -139,7 +139,10 @@ impl Value {
                 Value::List(items.into_iter().map(Value::from_json).collect())
             }
             serde_json::Value::Object(entries) => Value::Record(
-                entries.into_iter().map(|(k, v)| (k, Value::from_json(v))).collect(),
+                entries
+                    .into_iter()
+                    .map(|(k, v)| (k, Value::from_json(v)))
+                    .collect(),
             ),
         }
     }
@@ -158,7 +161,10 @@ impl Value {
                 serde_json::Value::Array(items.iter().map(Value::to_json).collect())
             }
             Value::Record(entries) => serde_json::Value::Object(
-                entries.iter().map(|(k, v)| (k.clone(), v.to_json())).collect(),
+                entries
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_json()))
+                    .collect(),
             ),
         }
     }
@@ -260,8 +266,15 @@ mod tests {
     fn fingerprints_are_stable_and_distinguishing() {
         let a = Value::record([("x", Value::Int(1)), ("y", Value::Int(2))]);
         let b = Value::record([("y", Value::Int(2)), ("x", Value::Int(1))]);
-        assert_eq!(a.fingerprint(), b.fingerprint(), "field order must not matter");
-        assert_ne!(a.fingerprint(), Value::record([("x", Value::Int(2))]).fingerprint());
+        assert_eq!(
+            a.fingerprint(),
+            b.fingerprint(),
+            "field order must not matter"
+        );
+        assert_ne!(
+            a.fingerprint(),
+            Value::record([("x", Value::Int(2))]).fingerprint()
+        );
     }
 
     #[test]

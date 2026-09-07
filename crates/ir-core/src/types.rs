@@ -80,22 +80,31 @@ pub enum Type {
 impl Type {
     /// A tensor type with the given shape and element type.
     pub fn tensor(shape: impl Into<Vec<i64>>, dtype: DType) -> Self {
-        Type::Tensor { shape: shape.into(), dtype }
+        Type::Tensor {
+            shape: shape.into(),
+            dtype,
+        }
     }
 
     /// A reference to an external resource.
     pub fn reference(resource: impl Into<String>) -> Self {
-        Type::Ref { resource: resource.into() }
+        Type::Ref {
+            resource: resource.into(),
+        }
     }
 
     /// An observation with the given schema name.
     pub fn observation(schema: impl Into<String>) -> Self {
-        Type::Observation { schema: schema.into() }
+        Type::Observation {
+            schema: schema.into(),
+        }
     }
 
     /// A tool result with the given schema name.
     pub fn tool_result(schema: impl Into<String>) -> Self {
-        Type::ToolResult { schema: schema.into() }
+        Type::ToolResult {
+            schema: schema.into(),
+        }
     }
 
     /// Whether the type is still to be resolved by the verifier.

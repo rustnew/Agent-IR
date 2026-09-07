@@ -19,7 +19,9 @@ use std::fmt;
 /// An unnamed scope means "unknown", and an unknown scope conservatively
 /// overlaps every other scope — the effect system never guesses in the
 /// direction that would let an unsafe pass fire.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct Scope(Option<String>);
 
 impl Scope {
@@ -80,7 +82,9 @@ pub enum Effect {
 }
 
 /// The effect variant without its payload, for capability grants and reporting.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum EffectClass {
     /// See [`Effect::Pure`].
     Pure,
@@ -281,7 +285,10 @@ mod tests {
     fn effects_round_trip_through_display() {
         assert_eq!(Effect::Pure.to_string(), "#pure");
         assert_eq!(Effect::read("web").to_string(), "#read_external<web>");
-        assert_eq!(Effect::WriteExternal(Scope::any()).to_string(), "#write_external");
+        assert_eq!(
+            Effect::WriteExternal(Scope::any()).to_string(),
+            "#write_external"
+        );
         assert_eq!(Effect::irreversible("db").to_string(), "#irreversible<db>");
         assert_eq!(Effect::Stochastic.to_string(), "#stochastic");
     }

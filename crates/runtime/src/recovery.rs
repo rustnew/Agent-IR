@@ -46,11 +46,7 @@ impl RecoveryManager {
     /// effects that completed after the last checkpoint are still in the log,
     /// and folding them back into the ledger is what stops them happening a
     /// second time.
-    pub fn resume<L: EventLog, C: CheckpointStore>(
-        &self,
-        log: &L,
-        checkpoints: &C,
-    ) -> Resumption {
+    pub fn resume<L: EventLog, C: CheckpointStore>(&self, log: &L, checkpoints: &C) -> Resumption {
         let (mut state, position, from_checkpoint) = match checkpoints.latest() {
             Some(checkpoint) => (
                 checkpoint.state.clone(),
@@ -61,7 +57,11 @@ impl RecoveryManager {
         };
 
         let recovered = fold_log_tail(log, position, &mut state.ledger);
-        Resumption { state, from_checkpoint, recovered_from_log: recovered }
+        Resumption {
+            state,
+            from_checkpoint,
+            recovered_from_log: recovered,
+        }
     }
 
     /// Rebuilds a ledger from the log alone, with no checkpoint at all.
@@ -90,13 +90,21 @@ fn fold_log_tail<L: EventLog>(log: &L, position: u64, ledger: &mut Ledger) -> us
             continue;
         }
         match &event.kind {
-            EventKind::Effect { idempotency_key: Some(key), result, .. } => {
+            EventKind::Effect {
+                idempotency_key: Some(key),
+                result,
+                ..
+            } => {
                 if !ledger.contains(key) {
                     recovered += 1;
                 }
                 ledger.record(key.clone(), result.clone());
             }
-            EventKind::EffectReplayed { idempotency_key, result, .. } => {
+            EventKind::EffectReplayed {
+                idempotency_key,
+                result,
+                ..
+            } => {
                 ledger.record(idempotency_key.clone(), result.clone());
             }
             _ => {}

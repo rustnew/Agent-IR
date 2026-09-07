@@ -11,7 +11,10 @@ use agent_ir_verifier::Verifier;
 fn optimized(source: &str) -> (Module, agent_ir_passes::PipelineReport) {
     let mut module = parse_module(source).expect("fixture should parse");
     let before = Verifier::new().verify_all(&module);
-    assert!(!before.has_errors(), "fixture should verify first:\n{before}");
+    assert!(
+        !before.has_errors(),
+        "fixture should verify first:\n{before}"
+    );
 
     let report = PassManager::default_pipeline().run(&mut module);
 
@@ -93,10 +96,13 @@ fn the_section_13_1_program_becomes_the_section_13_1_result() {
     // IR₁ of §13.1: the three inspections inside one parallel region, profile
     // after it.
     assert_eq!(printed.matches("control.parallel").count(), 1, "{printed}");
-    let region = &printed[printed.find("control.parallel").unwrap()
-        ..printed.find("control.yield").unwrap()];
+    let region =
+        &printed[printed.find("control.parallel").unwrap()..printed.find("control.yield").unwrap()];
     for literal in ["inspect_model", "inspect_hardware", "inspect_dataset"] {
-        assert!(region.contains(literal), "{literal} should be parallel:\n{printed}");
+        assert!(
+            region.contains(literal),
+            "{literal} should be parallel:\n{printed}"
+        );
     }
     assert!(!region.contains("profile"));
 }
@@ -109,7 +115,10 @@ fn the_specification_example_survives_the_pipeline() {
     // that respect.
     let printed = module.to_string();
     for literal in ["benchmark", "generate_candidates", "select"] {
-        assert!(printed.contains(literal), "{literal} disappeared:\n{printed}");
+        assert!(
+            printed.contains(literal),
+            "{literal} disappeared:\n{printed}"
+        );
     }
 }
 
@@ -125,9 +134,14 @@ fn a_pipeline_of_one_pass_reports_only_that_pass() {
 "#,
     )
     .unwrap();
-    let report = PassManager::new().with(DeadActionElimination).run(&mut module);
+    let report = PassManager::new()
+        .with(DeadActionElimination)
+        .run(&mut module);
     assert!(report.changed);
-    assert!(report.reports.iter().all(|r| r.pass == "dead-action-elimination"));
+    assert!(report
+        .reports
+        .iter()
+        .all(|r| r.pass == "dead-action-elimination"));
 }
 
 #[test]
@@ -141,7 +155,9 @@ fn every_pass_names_and_describes_itself() {
         assert!(!pass.name().is_empty());
         assert!(pass.description().ends_with('.'), "{}", pass.name());
         assert!(
-            pass.name().chars().all(|c| c.is_ascii_lowercase() || c == '-'),
+            pass.name()
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c == '-'),
             "{} should be kebab-case",
             pass.name()
         );

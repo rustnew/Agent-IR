@@ -24,7 +24,7 @@
 use crate::lexer::{tokenize, Span, Tok, Token};
 use agent_ir_core::{
     Attribute, Attributes, Capability, DType, Effect, EffectClass, Module, OpName, OperationId,
-    Provenance, Scope, Source, Type, ValueId, Validity,
+    Provenance, Scope, Source, Type, Validity, ValueId,
 };
 use std::collections::HashMap;
 use std::fmt;
@@ -48,7 +48,10 @@ impl std::error::Error for ParseError {}
 
 impl From<crate::lexer::LexError> for ParseError {
     fn from(err: crate::lexer::LexError) -> Self {
-        ParseError { message: err.message, span: err.span }
+        ParseError {
+            message: err.message,
+            span: err.span,
+        }
     }
 }
 
@@ -57,7 +60,13 @@ type Result<T> = std::result::Result<T, ParseError>;
 /// Parses a module from its textual form.
 pub fn parse_module(source: &str) -> Result<Module> {
     let tokens = tokenize(source)?;
-    Parser { tokens, pos: 0, module: Module::new("unnamed"), scopes: vec![HashMap::new()] }.run()
+    Parser {
+        tokens,
+        pos: 0,
+        module: Module::new("unnamed"),
+        scopes: vec![HashMap::new()],
+    }
+    .run()
 }
 
 struct Parser {
@@ -91,7 +100,10 @@ impl Parser {
     }
 
     fn error<T>(&self, message: impl Into<String>) -> Result<T> {
-        Err(ParseError { message: message.into(), span: self.span() })
+        Err(ParseError {
+            message: message.into(),
+            span: self.span(),
+        })
     }
 
     fn at_punct(&self, c: char) -> bool {
@@ -197,7 +209,10 @@ impl Parser {
     }
 
     fn lookup(&self, name: &str) -> Option<ValueId> {
-        self.scopes.iter().rev().find_map(|scope| scope.get(name).copied())
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(name).copied())
     }
 
     fn use_value(&mut self, name: &str) -> Result<ValueId> {
@@ -285,16 +300,15 @@ impl Parser {
         // results
         let mut result_names = Vec::new();
         if let Tok::Value(_) = self.peek() {
+            // `%a, %b =` is a result list; `%a` on its own starts nothing, so
+            // scan past the commas and look for the `=` before committing.
             let mut lookahead = 0;
-            loop {
-                match self.peek_at(lookahead) {
-                    Tok::Value(_) => lookahead += 1,
-                    _ => break,
+            while matches!(self.peek_at(lookahead), Tok::Value(_)) {
+                lookahead += 1;
+                if !matches!(self.peek_at(lookahead), Tok::Punct(',')) {
+                    break;
                 }
-                match self.peek_at(lookahead) {
-                    Tok::Punct(',') => lookahead += 1,
-                    _ => break,
-                }
+                lookahead += 1;
             }
             if matches!(self.peek_at(lookahead), Tok::Punct('=')) {
                 loop {
@@ -452,8 +466,9 @@ impl Parser {
                                 Tok::Value(name) => name,
                                 other => {
                                     self.pos -= 1;
-                                    return self
-                                        .error(format!("expected a block argument, found {other}"));
+                                    return self.error(format!(
+                                        "expected a block argument, found {other}"
+                                    ));
                                 }
                             };
                             self.expect_punct(':')?;
@@ -508,8 +523,9 @@ impl Parser {
                     match value {
                         Attribute::Effect(e) => effect = Some(e),
                         other => {
-                            return self
-                                .error(format!("`effect` must be an effect literal, found {other}"))
+                            return self.error(format!(
+                                "`effect` must be an effect literal, found {other}"
+                            ))
                         }
                     }
                 } else {
@@ -684,7 +700,9 @@ impl Parser {
             let source_word = self.expect_ident()?;
             let source: Source = match source_word.parse() {
                 Ok(source) => source,
-                Err(()) => return self.error(format!("`{source_word}` is not a provenance source")),
+                Err(()) => {
+                    return self.error(format!("`{source_word}` is not a provenance source"))
+                }
             };
 
             let mut confidence = 1.0;

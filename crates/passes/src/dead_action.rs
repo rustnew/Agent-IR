@@ -65,12 +65,7 @@ impl Pass for DeadActionElimination {
     }
 }
 
-fn is_dead(
-    module: &Module,
-    op: OperationId,
-    uses: &UseMap,
-    effects: &EffectSummary,
-) -> bool {
+fn is_dead(module: &Module, op: OperationId, uses: &UseMap, effects: &EffectSummary) -> bool {
     let operation = module.op(op);
 
     // An operation with no results exists for its effect. Even a `#pure` one —
@@ -104,8 +99,16 @@ fn note_removal(
     let is_context = operation.name.is("agent", "context")
         || operation.name.is("core", "constant")
         || operation.name.is("memory", "read");
-    let rule = if is_context { "dead-context" } else { "dead-action" };
-    let kind = if effects.is_pure(op) { "pure" } else { "read-only" };
+    let rule = if is_context {
+        "dead-context"
+    } else {
+        "dead-action"
+    };
+    let kind = if effects.is_pure(op) {
+        "pure"
+    } else {
+        "read-only"
+    };
     report.notes.push(
         Diagnostic::note(
             rule,
@@ -137,16 +140,14 @@ mod tests {
 
     #[test]
     fn removes_an_unread_pure_action() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   agent.func "f" {
   ^bb0(%x: !core.int):
     %unused = agent.action "compute"(%x) {effect = #pure} : !core.int
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert_eq!(report.removed.len(), 1);
         assert!(!module.to_string().contains("compute"));
     }
@@ -154,8 +155,7 @@ mod tests {
     #[test]
     fn removes_an_unread_external_read() {
         // §5 allows this: `ReadExternal` with a result proven unused.
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @web scope("web") grants(read_external)
 
   agent.func "f" {
@@ -164,16 +164,14 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert_eq!(report.removed.len(), 1);
         assert!(!module.to_string().contains("fetch"));
     }
 
     #[test]
     fn refuses_to_remove_an_unread_write() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @db scope("db") grants(write_external)
 
   agent.func "f" {
@@ -182,16 +180,17 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
+"#);
+        assert!(
+            !report.changed,
+            "a write is not dead just because nobody reads its receipt"
         );
-        assert!(!report.changed, "a write is not dead just because nobody reads its receipt");
         assert!(module.to_string().contains("insert"));
     }
 
     #[test]
     fn refuses_to_remove_an_unread_irreversible_action() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @pay scope("ledger") grants(irreversible)
 
   agent.func "f" {
@@ -201,8 +200,7 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed);
         assert!(module.to_string().contains("pay_invoice"));
     }
@@ -210,8 +208,7 @@ mod tests {
     #[test]
     fn refuses_to_remove_a_pure_looking_operation_that_hides_an_effect() {
         // The `control.parallel` line says `#pure`. Its region deletes rows.
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @db scope("db") grants(irreversible)
 
   agent.func "f" {
@@ -225,16 +222,14 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed, "the declaration hid the body:\n{module}");
         assert!(module.to_string().contains("delete_row"));
     }
 
     #[test]
     fn cascades_through_a_chain_of_dead_operations() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   agent.func "f" {
   ^bb0(%x: !core.int):
     %a = agent.action "one"(%x) {effect = #pure} : !core.int
@@ -243,8 +238,7 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert_eq!(report.removed.len(), 3, "the whole chain should go");
         let printed = module.to_string();
         for literal in ["one", "two", "three"] {
@@ -254,8 +248,7 @@ mod tests {
 
     #[test]
     fn keeps_everything_that_feeds_the_return() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   agent.func "f" {
   ^bb0(%x: !core.int):
     %a = agent.action "one"(%x) {effect = #pure} : !core.int
@@ -263,15 +256,13 @@ mod tests {
     agent.return(%b) {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed);
     }
 
     #[test]
     fn never_removes_an_operation_that_produces_nothing() {
-        let (module, report) = run(
-            r#"module @m version(0) {
+        let (module, report) = run(r#"module @m version(0) {
   capability @db scope("db") grants(write_external)
 
   agent.func "f" {
@@ -281,8 +272,7 @@ mod tests {
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         assert!(!report.changed);
         assert!(module.to_string().contains("memory.write"));
         assert!(module.to_string().contains("agent.reject"));
@@ -290,16 +280,14 @@ mod tests {
 
     #[test]
     fn distinguishes_dead_context_from_dead_action_in_the_report() {
-        let (_, report) = run(
-            r#"module @m version(0) {
+        let (_, report) = run(r#"module @m version(0) {
   agent.func "f" {
     %k = core.constant {effect = #pure, value = 1} : !core.int
     %a = agent.action "compute"() {effect = #pure} : !core.int
     agent.return {effect = #pure}
   } {effect = #pure}
 }
-"#,
-        );
+"#);
         let codes: Vec<&str> = report.notes.iter().map(|d| d.code.as_str()).collect();
         assert!(codes.contains(&"dead-context"), "{codes:?}");
         assert!(codes.contains(&"dead-action"), "{codes:?}");

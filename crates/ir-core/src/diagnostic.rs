@@ -9,7 +9,9 @@ use crate::ids::OperationId;
 use std::fmt;
 
 /// How much a diagnostic matters.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Severity {
     /// Worth reporting; the program still runs.
     Note,
@@ -59,12 +61,18 @@ impl Diagnostic {
 
     /// A warning that does not reject the program.
     pub fn warning(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Diagnostic { severity: Severity::Warning, ..Self::error(code, message) }
+        Diagnostic {
+            severity: Severity::Warning,
+            ..Self::error(code, message)
+        }
     }
 
     /// An informational note.
     pub fn note(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Diagnostic { severity: Severity::Note, ..Self::error(code, message) }
+        Diagnostic {
+            severity: Severity::Note,
+            ..Self::error(code, message)
+        }
     }
 
     /// Anchors the diagnostic to an operation.
@@ -158,7 +166,9 @@ impl Diagnostics {
 
 impl FromIterator<Diagnostic> for Diagnostics {
     fn from_iter<T: IntoIterator<Item = Diagnostic>>(iter: T) -> Self {
-        Diagnostics { entries: iter.into_iter().collect() }
+        Diagnostics {
+            entries: iter.into_iter().collect(),
+        }
     }
 }
 

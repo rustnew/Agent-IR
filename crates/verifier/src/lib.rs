@@ -182,7 +182,10 @@ impl Verifier {
             report.push(
                 Diagnostic::error(
                     "S1",
-                    format!("`{}` is not an operation of any v0.1 dialect", operation.name),
+                    format!(
+                        "`{}` is not an operation of any v0.1 dialect",
+                        operation.name
+                    ),
                 )
                 .at(op)
                 .suggest("check the dialect list in §3.2, or register a new dialect"),
@@ -237,7 +240,10 @@ impl Verifier {
             report.push(
                 Diagnostic::error(
                     "S4",
-                    format!("`{}` needs a string literal naming what it does", operation.name),
+                    format!(
+                        "`{}` needs a string literal naming what it does",
+                        operation.name
+                    ),
                 )
                 .at(op)
                 .suggest(format!("write `{} \"...\"`", operation.name)),
@@ -270,7 +276,9 @@ impl Verifier {
         // T2 of §14: the effect declaration must be one this operation is
         // allowed to make. An empty list means the operation may declare any.
         if !signature.allowed_effects.is_empty()
-            && !signature.allowed_effects.contains(&operation.effect.class())
+            && !signature
+                .allowed_effects
+                .contains(&operation.effect.class())
         {
             let allowed: Vec<String> = signature
                 .allowed_effects
@@ -544,7 +552,9 @@ impl Verifier {
 
         for &operand in &operation.operands {
             let value = module.value(operand);
-            if value.provenance.needs_verification(self.confidence_threshold)
+            if value
+                .provenance
+                .needs_verification(self.confidence_threshold)
                 && !verified.contains(&operand)
             {
                 report.push(

@@ -45,7 +45,11 @@ fn a_dependent_step_lands_in_a_later_batch() {
         .plan
         .batches
         .iter()
-        .position(|batch| batch.iter().any(|s| s.literal.as_deref() == Some("profile")))
+        .position(|batch| {
+            batch
+                .iter()
+                .any(|s| s.literal.as_deref() == Some("profile"))
+        })
         .unwrap();
     assert_eq!(profile_batch, 1);
 }
@@ -138,10 +142,19 @@ fn a_non_replayable_step_carries_an_idempotency_key() {
 "#,
     );
     let steps = plan.plan.steps();
-    let pay = steps.iter().find(|s| s.literal.as_deref() == Some("pay")).unwrap();
-    let fetch = steps.iter().find(|s| s.literal.as_deref() == Some("fetch")).unwrap();
+    let pay = steps
+        .iter()
+        .find(|s| s.literal.as_deref() == Some("pay"))
+        .unwrap();
+    let fetch = steps
+        .iter()
+        .find(|s| s.literal.as_deref() == Some("fetch"))
+        .unwrap();
     assert!(pay.idempotency_key.is_some(), "§8.3 requires a key here");
-    assert!(fetch.idempotency_key.is_none(), "a replayable read needs no key");
+    assert!(
+        fetch.idempotency_key.is_none(),
+        "a replayable read needs no key"
+    );
 }
 
 #[test]
@@ -184,7 +197,11 @@ fn an_over_budget_plan_degrades_by_halving_loop_bounds() {
         .schedule(&module(source), "f")
         .unwrap();
     assert!(plan.estimated.tool_calls <= 12, "{}", plan.estimated);
-    assert!(plan.notes.iter().any(|d| d.code == "degraded"), "{:?}", plan.notes);
+    assert!(
+        plan.notes.iter().any(|d| d.code == "degraded"),
+        "{:?}",
+        plan.notes
+    );
     assert!(
         !plan.notes.iter().any(|d| d.code == "budget"),
         "halving was enough; no human review needed"
@@ -208,8 +225,15 @@ fn a_budget_that_cannot_be_met_asks_for_human_review() {
         .schedule(&module(source), "f")
         .unwrap();
     let budget_note = plan.notes.iter().find(|d| d.code == "budget").unwrap();
-    assert!(budget_note.message.contains("cannot be met"), "{budget_note}");
-    assert!(budget_note.suggestion.as_ref().unwrap().contains("HUMAN_REVIEW"));
+    assert!(
+        budget_note.message.contains("cannot be met"),
+        "{budget_note}"
+    );
+    assert!(budget_note
+        .suggestion
+        .as_ref()
+        .unwrap()
+        .contains("HUMAN_REVIEW"));
 }
 
 #[test]
@@ -242,7 +266,11 @@ fn per_operation_estimates_override_the_defaults() {
 #[test]
 fn a_custom_estimator_changes_the_numbers_but_not_the_shape() {
     let fast = Estimator {
-        tool_call: Cost { tool_calls: 1, latency_ms: 1, ..Cost::ZERO },
+        tool_call: Cost {
+            tool_calls: 1,
+            latency_ms: 1,
+            ..Cost::ZERO
+        },
         ..Estimator::default()
     };
     let plan = Scheduler::new(GenericRuntime)
@@ -287,6 +315,13 @@ fn the_specification_example_schedules_end_to_end() {
     let plan = Scheduler::new(GenericRuntime)
         .schedule(&m, "optimize_inference")
         .expect("the specification example should schedule");
-    assert!(plan.estimated.llm_calls >= 1, "generate_candidates is a model call");
-    assert!(plan.estimated.tool_calls >= 40, "40 benchmarks: {}", plan.estimated);
+    assert!(
+        plan.estimated.llm_calls >= 1,
+        "generate_candidates is a model call"
+    );
+    assert!(
+        plan.estimated.tool_calls >= 40,
+        "40 benchmarks: {}",
+        plan.estimated
+    );
 }

@@ -201,8 +201,12 @@ mod tests {
     fn a_checkpoint_round_trips_through_json() {
         let mut state = ExecutionState::new();
         state.ledger.record("pay:1", Value::Str("receipt".into()));
-        let checkpoint =
-            Checkpoint { sequence: 1, log_position: 9, version: 2, state };
+        let checkpoint = Checkpoint {
+            sequence: 1,
+            log_position: 9,
+            version: 2,
+            state,
+        };
         let json = serde_json::to_string(&checkpoint).unwrap();
         assert_eq!(
             serde_json::from_str::<Checkpoint>(&json).unwrap(),

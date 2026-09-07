@@ -47,7 +47,10 @@ impl fmt::Display for RuntimeTarget {
         match self {
             RuntimeTarget::ToolCall { tool } => write!(f, "runtime.tool_call(tool = \"{tool}\")"),
             RuntimeTarget::Inference { model, backend } => {
-                write!(f, "runtime.inference(model = \"{model}\", backend = \"{backend}\")")
+                write!(
+                    f,
+                    "runtime.inference(model = \"{model}\", backend = \"{backend}\")"
+                )
             }
             RuntimeTarget::Memory { operation, key } => match key {
                 Some(key) => write!(f, "runtime.memory({operation}, key = \"{key}\")"),
@@ -241,7 +244,9 @@ impl Plan {
                     Some(Control::Loop { body, .. }) | Some(Control::Parallel { body }) => {
                         out.extend(body.steps())
                     }
-                    Some(Control::While { condition, body, .. }) => {
+                    Some(Control::While {
+                        condition, body, ..
+                    }) => {
                         out.extend(condition.steps());
                         out.extend(body.steps());
                     }
@@ -360,10 +365,7 @@ impl Backend for GenericRuntime {
                 key: operation.str_attr("key").map(ToString::to_string),
             }),
             ("agent", "plan") => Ok(RuntimeTarget::Inference {
-                model: operation
-                    .str_attr("model")
-                    .unwrap_or("default")
-                    .to_string(),
+                model: operation.str_attr("model").unwrap_or("default").to_string(),
                 backend: self.name().to_string(),
             }),
             // The §6.4 rule: a stochastic action is a model call, an effectful
@@ -386,7 +388,9 @@ impl Backend for GenericRuntime {
                 format!("the generic backend has no lowering for `{name}`"),
             )
             .at(op)
-            .suggest("implement `Backend::lower` for this operation, or remove it before lowering")),
+            .suggest(
+                "implement `Backend::lower` for this operation, or remove it before lowering",
+            )),
         }
     }
 }
@@ -427,7 +431,9 @@ mod tests {
     fn an_external_action_lowers_to_a_tool_call() {
         assert_eq!(
             lower_literal(PROGRAM, "search"),
-            RuntimeTarget::ToolCall { tool: "search".into() }
+            RuntimeTarget::ToolCall {
+                tool: "search".into()
+            }
         );
     }
 
@@ -435,7 +441,10 @@ mod tests {
     fn a_stochastic_action_lowers_to_inference() {
         assert_eq!(
             lower_literal(PROGRAM, "run_model"),
-            RuntimeTarget::Inference { model: "vllm-7b".into(), backend: "generic".into() }
+            RuntimeTarget::Inference {
+                model: "vllm-7b".into(),
+                backend: "generic".into()
+            }
         );
     }
 
@@ -468,7 +477,10 @@ mod tests {
             .unwrap();
         assert_eq!(
             GenericRuntime.lower(&module, read).unwrap(),
-            RuntimeTarget::Memory { operation: MemoryOp::Read, key: Some("last_run".into()) }
+            RuntimeTarget::Memory {
+                operation: MemoryOp::Read,
+                key: Some("last_run".into())
+            }
         );
     }
 
@@ -492,11 +504,18 @@ mod tests {
     #[test]
     fn a_target_prints_the_section_6_4_form() {
         assert_eq!(
-            RuntimeTarget::ToolCall { tool: "web_search".into() }.to_string(),
+            RuntimeTarget::ToolCall {
+                tool: "web_search".into()
+            }
+            .to_string(),
             "runtime.tool_call(tool = \"web_search\")"
         );
         assert_eq!(
-            RuntimeTarget::Inference { model: "m".into(), backend: "vllm".into() }.to_string(),
+            RuntimeTarget::Inference {
+                model: "m".into(),
+                backend: "vllm".into()
+            }
+            .to_string(),
             "runtime.inference(model = \"m\", backend = \"vllm\")"
         );
     }

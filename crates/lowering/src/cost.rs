@@ -40,12 +40,22 @@ impl Cost {
 
     /// One tool invocation taking `latency_ms`.
     pub fn tool_call(latency_ms: u64) -> Self {
-        Cost { tool_calls: 1, latency_ms, ..Cost::ZERO }
+        Cost {
+            tool_calls: 1,
+            latency_ms,
+            ..Cost::ZERO
+        }
     }
 
     /// One model call.
     pub fn llm_call(input_tokens: u64, output_tokens: u64, latency_ms: u64) -> Self {
-        Cost { input_tokens, output_tokens, llm_calls: 1, latency_ms, ..Cost::ZERO }
+        Cost {
+            input_tokens,
+            output_tokens,
+            llm_calls: 1,
+            latency_ms,
+            ..Cost::ZERO
+        }
     }
 
     /// The total tokens, input and output.
@@ -205,16 +215,28 @@ impl Budget {
 
     /// The first constraint `cost` breaks, if any.
     pub fn overrun(&self, cost: &Cost) -> Option<Overrun> {
-        if self.token_budget.is_some_and(|limit| cost.total_tokens() > limit) {
+        if self
+            .token_budget
+            .is_some_and(|limit| cost.total_tokens() > limit)
+        {
             return Some(Overrun::Tokens);
         }
-        if self.latency_budget_ms.is_some_and(|limit| cost.latency_ms > limit) {
+        if self
+            .latency_budget_ms
+            .is_some_and(|limit| cost.latency_ms > limit)
+        {
             return Some(Overrun::Latency);
         }
-        if self.llm_call_budget.is_some_and(|limit| cost.llm_calls > limit) {
+        if self
+            .llm_call_budget
+            .is_some_and(|limit| cost.llm_calls > limit)
+        {
             return Some(Overrun::LlmCalls);
         }
-        if self.tool_call_budget.is_some_and(|limit| cost.tool_calls > limit) {
+        if self
+            .tool_call_budget
+            .is_some_and(|limit| cost.tool_calls > limit)
+        {
             return Some(Overrun::ToolCalls);
         }
         None
@@ -275,8 +297,14 @@ mod tests {
             llm_call_budget: Some(1),
             tool_call_budget: Some(2),
         };
-        assert_eq!(budget.overrun(&Cost::llm_call(200, 0, 0)), Some(Overrun::Tokens));
-        assert_eq!(budget.overrun(&Cost::tool_call(2000)), Some(Overrun::Latency));
+        assert_eq!(
+            budget.overrun(&Cost::llm_call(200, 0, 0)),
+            Some(Overrun::Tokens)
+        );
+        assert_eq!(
+            budget.overrun(&Cost::tool_call(2000)),
+            Some(Overrun::Latency)
+        );
         assert_eq!(
             budget.overrun(&(Cost::llm_call(1, 1, 1) + Cost::llm_call(1, 1, 1))),
             Some(Overrun::LlmCalls)
