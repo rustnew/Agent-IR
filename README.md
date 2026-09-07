@@ -4,6 +4,7 @@
 
 Status: working draft — subject to major revision before v1.0
 Scope: conceptual specification + reference architecture + Rust implementation plan
+Site: https://rustnew.github.io/Agent-IR/
 
 ---
 
@@ -497,10 +498,10 @@ No gain figure is published anywhere else in this document until this protocol h
 
 ```mermaid
 flowchart LR
-    A["Agent A\nisolated capabilities"]:::agentA
-    B["Agent B\nisolated capabilities"]:::agentB
-    C["Agent C\nisolated capabilities"]:::agentC
-    SHARED["Shared Agent IR\n(exported sub-programs, observations, task contracts, provenance preserved)"]:::ir
+    A["Agent A<br/>isolated capabilities"]:::agentA
+    B["Agent B<br/>isolated capabilities"]:::agentB
+    C["Agent C<br/>isolated capabilities"]:::agentC
+    SHARED["Shared Agent IR<br/>(exported sub-programs, observations, task contracts, provenance preserved)"]:::ir
 
     A -- "export sub-module" --> SHARED
     B -- "export sub-module" --> SHARED
@@ -671,20 +672,20 @@ flowchart TD
     IN["Proposed Agent IR"]:::ir
 
     subgraph STATIC["Static verification (before any execution)"]
-        T1["Well-formedness\n(SSA, resolved types — I1)"]:::check
-        T2["Complete effect declarations\n(no Operation without an Effect)"]:::check
-        T3["Loop guards present\n(I5)"]:::check
-        T4["Required capability declared\nfor every Irreversible effect (I2)"]:::check
+        T1["Well-formedness<br/>(SSA, resolved types — I1)"]:::check
+        T2["Complete effect declarations<br/>(no Operation without an Effect)"]:::check
+        T3["Loop guards present<br/>(I5)"]:::check
+        T4["Required capability declared<br/>for every Irreversible effect (I2)"]:::check
     end
 
     subgraph DYNAMIC["Dynamic verification (during execution)"]
-        D1["Sufficient LLM confidence\nbefore a non-Pure effect (I4)"]:::checkdyn
-        D2["Runtime constraints\n(budget, accuracy_loss...)"]:::checkdyn
-        D3["Valid idempotency key\nbefore any retry (§8.3)"]:::checkdyn
+        D1["Sufficient LLM confidence<br/>before a non-Pure effect (I4)"]:::checkdyn
+        D2["Runtime constraints<br/>(budget, accuracy_loss...)"]:::checkdyn
+        D3["Valid idempotency key<br/>before any retry (§8.3)"]:::checkdyn
     end
 
     OK["Program accepted"]:::ok
-    REJ["Structured diagnostic\n(violated invariant + offending operation)"]:::reject
+    REJ["Structured diagnostic<br/>(violated invariant + offending operation)"]:::reject
 
     IN --> T1 --> T2 --> T3 --> T4
     T4 -->|all ok| OK
@@ -726,16 +727,16 @@ The scheduler takes the optimized plan (post Pass Manager) and produces a concre
 
 ```mermaid
 flowchart TD
-    OPT["Optimized plan\n(dependency graph + effects)"]:::ir
-    BUD["Budget constraints\n(token_budget, latency_budget, cost_budget)"]:::guard
+    OPT["Optimized plan<br/>(dependency graph + effects)"]:::ir
+    BUD["Budget constraints<br/>(token_budget, latency_budget, cost_budget)"]:::guard
 
-    TOPO["Topological sort\n(respects dependencies)"]:::compile
-    GROUP["Grouping independent nodes\ninto a parallel batch"]:::compile
-    COST["Per-batch cost estimation\n(tokens, tool calls, latency)"]:::compile
+    TOPO["Topological sort<br/>(respects dependencies)"]:::compile
+    GROUP["Grouping independent nodes<br/>into a parallel batch"]:::compile
+    COST["Per-batch cost estimation<br/>(tokens, tool calls, latency)"]:::compile
     DECIDE{"Budget sufficient?"}:::guard
 
     PLAN_OK["Final Execution Plan"]:::ok
-    DEGRADE["Degraded strategy\n(reduce reasoning_budget,\nsimplify candidates, or HUMAN_REVIEW)"]:::reject
+    DEGRADE["Degraded strategy<br/>(reduce reasoning_budget,<br/>simplify candidates, or HUMAN_REVIEW)"]:::reject
 
     OPT --> TOPO --> GROUP --> COST --> DECIDE
     BUD --> DECIDE
@@ -778,7 +779,7 @@ sequenceDiagram
     RM->>EL: replay the event log since the checkpoint to validate consistency
     RM->>IR: restore IR₅ (not IR₀ — no full restart)
     IR->>R: resume at candidate_16
-    Note over R: candidate_16 is checked via its idempotency_key before re-execution\n(avoids a double benchmark if it had already been launched before the crash)
+    Note over R: candidate_16 is checked via its idempotency_key before re-execution<br/>(avoids a double benchmark if it had already been launched before the crash)
     R->>EL: append event (candidate_16, result, ...)
     R->>R: continue through candidate_40
     R-->>IR: session finished, final result
