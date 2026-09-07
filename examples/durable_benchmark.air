@@ -1,0 +1,21 @@
+// The long-running scenario of §16.
+//
+// Forty candidates are benchmarked one at a time. The benchmark itself is a
+// read — replayable, so a crash may simply repeat it — while recording the
+// result is a write, and must not happen twice. That asymmetry is the whole
+// point: the effect system is what tells recovery which is which.
+module @durable version(0) {
+  capability @bench scope("bench") grants(read_external)
+  capability @results scope("results") grants(write_external)
+
+  agent.func "benchmark_candidates" {
+  ^bb0(%candidates: !tool.ref<candidates>):
+    control.loop(%candidates) {
+    ^bb0(%candidate: !tool.ref<candidate>):
+      %result = tool.call "benchmark"(%candidate) {effect = #read_external<bench>} : !tool.result<benchmark>
+      %latency = observation.metric "latency"(%result) {effect = #pure} : !core.float
+      tool.call "record_result"(%candidate, %latency) {effect = #write_external<results>}
+    } {effect = #pure, max_iterations = 40}
+    agent.return {effect = #pure}
+  } {effect = #pure}
+}

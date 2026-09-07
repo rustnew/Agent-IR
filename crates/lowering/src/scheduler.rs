@@ -323,6 +323,7 @@ impl<B: Backend> Scheduler<B> {
             target,
             operands: operation.operands.clone(),
             results: operation.results.clone(),
+            attributes: operation.attributes.clone(),
             effect: operation.effect.clone(),
             idempotency_key,
             estimated,

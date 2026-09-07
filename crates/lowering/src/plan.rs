@@ -164,6 +164,10 @@ pub struct Step {
     pub operands: Vec<ValueId>,
     /// The values produced.
     pub results: Vec<ValueId>,
+    /// The operation's attributes, carried through because the runtime needs
+    /// them: the constant's `value`, the projection's `field`, the memory
+    /// `key`, the capability an `agent.verify` names.
+    pub attributes: agent_ir_core::Attributes,
     /// The declared effect, carried through so the runtime can enforce §8.3.
     pub effect: Effect,
     /// Present for every non-idempotent effect: the key the tool runtime checks
