@@ -13,3 +13,7 @@ authors.workspace = true
 agent-ir-core = { workspace = true }
 agent-ir-dialects = { workspace = true }
 agent-ir-analysis = { workspace = true }
+
+[dev-dependencies]
+agent-ir-parser = { workspace = true }
+agent-ir-verifier = { workspace = true }
