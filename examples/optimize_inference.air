@@ -5,6 +5,7 @@
 // that break the accuracy constraint before selecting a survivor.
 module @inference version(0) {
   capability @benchmark scope("bench") grants(read_external)
+  capability @llm scope(*) grants(stochastic)
   capability @profiler scope("profiler") grants(read_external)
   capability @select_model scope("registry") grants(read_external)
 
@@ -19,6 +20,7 @@ module @inference version(0) {
       control.yield(%profiled) {effect = #pure}
     } {effect = #pure} : !observation.observation<profile>
     %candidates = agent.action "generate_candidates"(%profile) {effect = #stochastic} : !tool.ref<candidates> provenance(%candidates = llm confidence(0.7))
+    agent.verify(%candidates) {effect = #pure, capability = "llm"}
     control.loop(%candidates) {
     ^bb0(%candidate: !tool.ref<candidate>):
       %result = tool.call "benchmark"(%candidate) {effect = #read_external<bench>} : !tool.result<benchmark>
