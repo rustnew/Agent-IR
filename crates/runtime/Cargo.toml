@@ -1,0 +1,17 @@
+[package]
+name = "agent-ir-runtime"
+description = "Durable execution runtime for Agent IR: executor, event log, state and checkpoint stores, recovery."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+agent-ir-core = { workspace = true }
+agent-ir-dialects = { workspace = true }
+agent-ir-lowering = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

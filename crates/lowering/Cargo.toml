@@ -1,0 +1,16 @@
+[package]
+name = "agent-ir-lowering"
+description = "Lowering from Agent IR to runtime operations, plus the scheduler of §15."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+agent-ir-core = { workspace = true }
+agent-ir-dialects = { workspace = true }
+agent-ir-analysis = { workspace = true }
+serde = { workspace = true }

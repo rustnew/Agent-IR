@@ -1,0 +1,13 @@
+[package]
+name = "agent-ir-core"
+description = "Core intermediate representation for Agent IR: values, operations, regions, types, effects and capabilities."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }

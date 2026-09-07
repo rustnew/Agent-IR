@@ -1,0 +1,36 @@
+// The worked example of §3.3, in canonical Agent IR.
+//
+// An agent inspects a model and its hardware, profiles them, asks the LLM for
+// candidate configurations, benchmarks each one, and rejects the candidates
+// that break the accuracy constraint before selecting a survivor.
+module @inference version(0) {
+  capability @benchmark scope("bench") grants(read_external)
+  capability @profiler scope("profiler") grants(read_external)
+  capability @select_model scope("registry") grants(read_external)
+
+  agent.func "optimize_inference" {
+  ^bb0(%model: !tool.ref<model>, %hardware: !tool.ref<hw>):
+    %max_accuracy_loss = core.constant {effect = #pure, value = 0.01} : !core.float
+    %ctx = agent.context(%max_accuracy_loss) {effect = #pure, objective = "latency"} : !agent.plan
+    %model_info = agent.action "inspect_model"(%model) {effect = #pure} : !observation.observation<model>
+    %hardware_info = agent.action "inspect_hardware"(%hardware) {effect = #pure} : !observation.observation<hw>
+    %profile = control.parallel {
+      %profiled = agent.action "profile"(%model, %hardware) {effect = #read_external<profiler>} : !observation.observation<profile>
+      control.yield(%profiled) {effect = #pure}
+    } {effect = #pure} : !observation.observation<profile>
+    %candidates = agent.action "generate_candidates"(%profile) {effect = #stochastic} : !tool.ref<candidates> provenance(%candidates = llm confidence(0.7))
+    control.loop(%candidates) {
+    ^bb0(%candidate: !tool.ref<candidate>):
+      %result = tool.call "benchmark"(%candidate) {effect = #read_external<bench>} : !tool.result<benchmark>
+      %latency = observation.metric "latency"(%result) {effect = #pure} : !core.float
+      %accuracy = observation.metric "accuracy"(%result) {effect = #pure} : !core.float
+      %breaks_constraint = core.cmp "gt"(%accuracy, %max_accuracy_loss) {effect = #pure} : !core.bool
+      control.if(%breaks_constraint) {
+        agent.reject(%candidate) {effect = #pure}
+      } {effect = #pure}
+    } {effect = #pure, max_iterations = 40}
+    %selected = agent.action "select"(%candidates) {effect = #pure} : !tool.ref<model>
+    agent.verify(%selected) {effect = #pure, capability = "select_model"}
+    agent.return(%selected) {effect = #pure}
+  } {effect = #pure}
+}

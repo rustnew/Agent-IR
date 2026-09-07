@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ir-core",
+    "crates/dialects",
+    "crates/parser",
+    "crates/verifier",
+    "crates/analysis",
+    "crates/passes",
+    "crates/lowering",
+    "crates/runtime",
+    "crates/agent-ir",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+license = "Apache-2.0"
+repository = "https://github.com/rustnew/Agent-IR"
+homepage = "https://rustnew.github.io/Agent-IR/"
+authors = ["Agent IR contributors"]
+
+[workspace.dependencies]
+agent-ir-core = { path = "crates/ir-core", version = "0.1.0" }
+agent-ir-dialects = { path = "crates/dialects", version = "0.1.0" }
+agent-ir-parser = { path = "crates/parser", version = "0.1.0" }
+agent-ir-verifier = { path = "crates/verifier", version = "0.1.0" }
+agent-ir-analysis = { path = "crates/analysis", version = "0.1.0" }
+agent-ir-passes = { path = "crates/passes", version = "0.1.0" }
+agent-ir-lowering = { path = "crates/lowering", version = "0.1.0" }
+agent-ir-runtime = { path = "crates/runtime", version = "0.1.0" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+lto = "thin"
