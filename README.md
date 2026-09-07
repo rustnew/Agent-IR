@@ -3,7 +3,8 @@
 **A compilation infrastructure for agentic systems**
 
 Status: working draft — subject to major revision before v1.0
-Scope: conceptual specification + reference architecture + Rust implementation plan
+Scope: specification, reference implementation in Rust, and a benchmark plan
+Implementation: phases 0 to 9 of §12 are built and tested — see §18
 Site: https://rustnew.github.io/Agent-IR/
 
 ---
@@ -17,6 +18,8 @@ This document tries to follow the discipline of a compiler specification (MLIR-s
 3. **The LLM is never an authority on real effects.** It proposes; the IR + the verifier decide.
 
 The main friction point of this whole project — and the real potential scientific contribution — is not the syntax. It is the **type and effect system** that makes it possible to know, before execution, whether a transformation or an action is safe. Without that, "Agent IR" is just a pretty serialization format for trajectories. This document therefore puts the type/effect system at the center, ahead of dialects and ahead of passes.
+
+A fourth rule has been added since the reference implementation was written: **where the code contradicted the specification, the specification was corrected.** Each such correction is marked *(corrected by the implementation)* at the point where it applies. A specification whose own worked example does not compile is a pitch, not a specification.
 
 ---
 
@@ -96,9 +99,11 @@ Effect :=
     Pure                     // no external interaction, replayable, cacheable
   | ReadExternal(scope)      // external read (web, file, API) — idempotent by nature
   | WriteExternal(scope)     // external write — non-idempotent unless proven otherwise
-  | Irreversible             // non-undoable effect (payment, deletion, sending)
+  | Irreversible(scope)     // non-undoable effect (payment, deletion, sending)
   | Stochastic               // non-deterministic output (LLM call, sampling)
 ```
+
+*(Corrected by the implementation: `Irreversible` originally carried no scope. It needs one, or invariant I3 cannot decide whether an irreversible write races a read of the same resource. An unnamed scope means "unknown", and an unknown scope conservatively overlaps every other — the effect system never guesses in the direction that would let an unsafe pass fire.)*
 
 This signature is what makes an optimization pass *decidable* rather than *heuristic*:
 
@@ -164,48 +169,75 @@ Identical in spirit to MLIR: SSA, nested regions, static attributes vs dynamic v
 The initial scope is deliberately limited to 5 dialects rather than defining 15:
 
 ```
-core        — module, function, constant, cast
-agent       — input, context, action, plan, return
-control     — if, while, loop, parallel, branch
+core        — constant, cast, cmp
+agent       — func, input, context, action, plan, budget, verify, reject, return
+control     — if, while, loop, parallel, yield
 tool        — call, result, capability
 memory      — read, write, search
 observation — create, metric, error
 ```
 
+*(Corrected by the implementation. Three changes.* `core.cmp` *was added: §3.3 writes* `control.if (%accuracy < %threshold)` *and without a comparison there is no way to produce the boolean that* `control.if` *consumes.* `control.yield` *was added: a region that produces a value has to say which one, or values escape their region and SSA breaks.* `control.branch` *was dropped from v0.1: everything else in the dialect is structured control flow, and keeping it that way is what lets the effect analysis of §5 reason about a region as a unit instead of solving dataflow over an arbitrary CFG.)*
+
+Each operation also declares **which effect classes it is allowed to carry**. `core.constant` may only be `#pure`; `tool.call` may be anything external but never `#stochastic`; `agent.action` may be anything at all. That column is the structural half of the safety argument: without it, a program could label a payment `#pure` and walk past every §5 pass condition. `agent-ir dialects` prints the table.
+
 `policy` and `communication` (multi-agent) are deliberately deferred to v0.2 — including them now would risk freezing a bad abstraction before a single agent works end to end.
 
 ### 3.3 Textual syntax (human-readable)
 
+The syntax below is the one the reference implementation parses and prints, and the program is `examples/optimize_inference.air` — checked in, verified and executed by the test suite. Printing *is* the definition of the grammar: `print(parse(f)) == f` is asserted for every example, so the text here cannot drift from what the compiler accepts.
+
+```
+operation  := results? op-name string? operands? region* attr-dict? types? provenance?
+results    := '%' ident (',' '%' ident)* '='
+op-name    := ident '.' ident
+operands   := '(' ('%' ident (',' '%' ident)*)? ')'
+region     := '{' block+ '}'
+block      := ('^' ident block-args? ':')? operation*
+attr-dict  := '{' (ident '=' attr (',' ident '=' attr)*)? '}'
+types      := ':' (type | '(' type (',' type)* ')')
+```
+
+*(Corrected by the implementation. The v0.1 draft wrote `control.if (%a < %b)` and `%ctx.field`, neither of which is an operation — they are an expression language smuggled into an operation grammar, and they do not round-trip. The comparison is now an explicit `core.cmp`, field access an explicit operand, and every operation has the same shape. The effect is printed on every operation rather than defaulted, because §14's static check T2 requires that no operation lack one and a default would make the omission invisible.)*
+
 ```mlir
-module {
-  agent.func @optimize_inference(%model: !tool.ref<model>, %hardware: !tool.ref<hw>) {
+module @inference version(0) {
+  capability @benchmark scope("bench") grants(read_external)
+  capability @host scope("host") grants(read_external)
+  capability @llm scope(*) grants(stochastic)
+  capability @profiler scope("profiler") grants(read_external)
+  capability @select_model scope("registry") grants(read_external)
 
-    %ctx = agent.context { objective = "latency", max_accuracy_loss = 0.01 }
-
-    %model_info   = agent.action "inspect_model"(%model)     {effect = #pure}
-    %hardware_info= agent.action "inspect_hardware"(%hardware){effect = #pure}
-
-    control.parallel {
-      %profile  = agent.action "profile"(%model, %hardware)  {effect = #read_external}
-    }
-
-    %candidates = agent.action "generate_candidates"(%profile) {effect = #stochastic}
-
-    control.loop %c : !agent.candidate in %candidates {
-      %result   = tool.call "benchmark"(%c)                  {effect = #read_external}
-      %latency  = observation.metric %result, "latency"
-      %accuracy = observation.metric %result, "accuracy"
-
-      control.if (%accuracy < %ctx.max_accuracy_loss) {
-        agent.reject %c
-      }
-    }
-
-    agent.verify %selected : capability("select_model")
-    agent.return %selected
-  }
+  agent.func "optimize_inference" {
+  ^bb0(%model: !tool.ref<model>, %hardware: !tool.ref<hw>):
+    %max_accuracy_loss = core.constant {effect = #pure, value = 0.01} : !core.float
+    %ctx = agent.context(%max_accuracy_loss) {effect = #pure, objective = "latency"} : !agent.plan
+    %model_info = agent.action "inspect_model"(%model) {effect = #read_external<host>} : !observation.observation<model>
+    %hardware_info = agent.action "inspect_hardware"(%hardware) {effect = #read_external<host>} : !observation.observation<hw>
+    %profile = control.parallel {
+      %profiled = agent.action "profile"(%model, %hardware) {effect = #read_external<profiler>} : !observation.observation<profile>
+      control.yield(%profiled) {effect = #pure}
+    } {effect = #pure} : !observation.observation<profile>
+    %candidates = agent.action "generate_candidates"(%profile) {effect = #stochastic} : !tool.ref<candidates> provenance(%candidates = llm confidence(0.7))
+    agent.verify(%candidates) {effect = #pure, capability = "llm"}
+    control.loop(%candidates) {
+    ^bb0(%candidate: !tool.ref<candidate>):
+      %result = tool.call "benchmark"(%candidate) {effect = #read_external<bench>} : !tool.result<benchmark>
+      %latency = observation.metric "latency"(%result) {effect = #pure} : !core.float
+      %accuracy = observation.metric "accuracy"(%result) {effect = #pure} : !core.float
+      %breaks_constraint = core.cmp "gt"(%accuracy, %max_accuracy_loss) {effect = #pure} : !core.bool
+      control.if(%breaks_constraint) {
+        agent.reject(%candidate) {effect = #pure}
+      } {effect = #pure}
+    } {effect = #pure, max_iterations = 40}
+    %selected = agent.action "select"(%candidates) {effect = #read_external<registry>} : !tool.ref<model>
+    agent.verify(%selected) {effect = #pure, capability = "select_model"}
+    agent.return(%selected) {effect = #pure}
+  } {effect = #pure}
 }
 ```
+
+The `agent.verify` before the loop is not decoration: `%candidates` comes from the model with confidence 0.7, and invariant I4 refuses to let a value that unreliable feed anything that touches the world. The one before `agent.return` satisfies I2. Remove either and `agent-ir verify` rejects the program.
 
 ### 3.4 Verification invariants (excerpt)
 
@@ -274,6 +306,13 @@ For each pass: what it does, its validity condition **expressed in terms of the 
 | **Speculative Execution** | Never on `Irreversible`; requires a defined compensating action for any `WriteExternal` | A non-undoable side effect executed on the basis of a false hypothesis |
 | **Checkpoint Optimization** | The state store guarantees snapshot consistency (no partial checkpoint) | Resuming from an inconsistent state |
 | **Incremental Recompilation** | The unmodified region is proven unaffected by the new observations | Using an obsolete plan in a region assumed to be "unchanged" |
+
+**What is implemented.** Three of these passes exist and are tested: *Dead Action Elimination* (which absorbs *Dead Context Elimination*), *Tool Call Deduplication* / *Result Reuse*, and *Parallelization*. Each refuses to fire when its condition is unmet, and each refusal has a test. The rest of the table is specification, not code, and is marked as such in §18.
+
+Two of the conditions above needed sharpening once they were written down as code:
+
+- *Result Reuse* says "validity window not expired". A compiler has no clock, so the implementation proves the stronger, decidable thing instead: **nothing between the two calls writes a scope either of them touches**. A read whose freshness depends on wall-clock time rather than on writes this program makes must opt out with `no_cache = true`.
+- *Parallelization* fuses only operations that are **already adjacent**. Moving an operation across one it does not depend on is not safe from the dependency graph alone — shifting it earlier can jump it over a transitive predecessor, shifting it later over a successor — and this table says a pass fires when its condition is *satisfied*, not when it is plausible. The scheduler of §15 recovers the rest of the parallelism at execution time, where it orders execution instead of rewriting the program and every dependency edge still runs from an earlier batch to a later one.
 
 **Critical note (§5.1):** *Context Slicing* is the most seductive and the riskiest pass of the lot. An LLM can make implicit inferences from signals not modeled in the explicit dependency graph (style, tone, indirect mention). Until we have an empirical measure of how frequent these "invisible" dependencies are, this pass must remain **conservative by default** (over-inclusion rather than under-inclusion), with the token budget as a tuning constraint rather than the other way around.
 
@@ -421,7 +460,11 @@ flowchart TD
 
 ### 8.3 Idempotency
 
-Every operation with a `WriteExternal` or `Irreversible` effect carries an `idempotency_key` derived from (module_id, operation_id, attempt). The runtime asks the Tool Runtime before re-execution: "does this operation already have a recorded result for this key?"
+Every operation with a `WriteExternal` or `Irreversible` effect carries an `idempotency_key`. The runtime asks the Tool Runtime before re-execution: "does this operation already have a recorded result for this key?"
+
+*(Corrected by the implementation.* A key derived from (module, operation, attempt) is not enough: the write inside a forty-iteration loop is *forty* effects, and one key for all of them would let recovery skip thirty-nine. The key therefore carries the **loop path** alongside the static half — module, version, operation. It stays stable across a replay because the plan does, including when the iterated list came from a model: a `#stochastic` call is non-replayable, so it carries a key of its own and is memoized rather than re-sampled.
+
+*Asking the Tool Runtime, and not only the executor's own ledger, is also load-bearing rather than stylistic.* A write whose acknowledgement a crash swallowed never reaches the ledger, so only the side that actually performed it can say that it happened. §16 stages exactly that case.)
 
 ### 8.4 Loop guards
 
@@ -452,10 +495,14 @@ Cost = α·input_tokens + β·output_tokens + γ·llm_calls + δ·tool_calls + �
 Constraints expressible in the IR:
 
 ```
-agent.budget { token_budget = 8000, latency_budget = 5s, cost_budget = 0.10usd, quality_threshold = 0.95 }
+agent.budget {token_budget = 8000, latency_budget_ms = 5000, llm_call_budget = 4, tool_call_budget = 40}
 ```
 
+*(Corrected by the implementation: budgets are plain attributes with unit-carrying names rather than suffixed literals like `5s` and `0.10usd`, which would need a literal grammar of their own for no gain. `quality_threshold` is not a budget the scheduler can enforce — it is a property of an outcome, checked after the fact — so it is not in the operation.)*
+
 The scheduler looks for an execution strategy that minimizes `Cost` under these constraints — with no guarantee of finding the global optimum (a combinatorial problem, solved with heuristics at first).
+
+The coefficients α to ε in the reference implementation are **placeholders, not measurements**. They encode only an ordering that is safe to assume — a model call costs more than a tool call, which costs more than a token — so the scheduler has something to sort by before the benchmark of §9.4 has run. Per-operation `est_*` attributes are how real numbers get fed back in.
 
 ### 9.2 What the IR can and cannot optimize directly
 
@@ -522,64 +569,87 @@ Each agent keeps its own `Capability` and `Memory` space; sharing happens throug
 
 ## 11. Rust implementation architecture
 
+This is what exists, not what is planned. Every crate below builds, is documented, and is covered by the test suite described in §18.
+
 ```
-agent-ir/
-├── ir-core/          # Module, Region, Block, Operation, Value, Type, Attribute, Effect
-├── dialects/
-│   ├── core/  agent/  control/  tool/  memory/  observation/
-├── parser/            # lexer, parser, printer (syntax of §3.3)
-├── verifier/          # invariants I1-I5, structured diagnostics
-├── analysis/          # dataflow, dependency-graph, effect-analysis
-├── passes/            # one pass = one trait PassImpl { fn run(&self, &mut Module) -> Result<Diagnostics> }
-├── pass-manager/       # orchestration, pass ordering, fixpoint
-├── lowering/
-│   ├── generic-runtime/  openclaw/  langgraph/
-├── runtime/
-│   ├── executor/  state-store/  event-log/  checkpoint-store/  recovery/
-└── sdk/
-    ├── rust/  python/
+Agent-IR/
+├── crates/
+│   ├── ir-core/     Module/Region/Block/Operation/Value, types, effects,
+│   │                capabilities, provenance, diagnostics, builder, printer
+│   ├── dialects/    the six v0.1 dialects as data: arity, required attributes,
+│   │                and which effect classes each operation may declare
+│   ├── parser/      lexer and recursive-descent parser for the printed syntax
+│   ├── analysis/    dominance, use map, effect summaries, dependency graph
+│   ├── verifier/    the two rejection points of §4: invariants I1-I5, then
+│   │                capabilities and approvals
+│   ├── passes/      the §5 passes and the fixpoint pass manager
+│   ├── lowering/    the §6.4 table, the §9.1 cost model, the §15 scheduler
+│   ├── runtime/     event log, state, ledger, checkpoints, recovery, executor
+│   └── agent-ir/    the facade crate and the `agent-ir` command line driver
+└── examples/        `.air` programs that are compiled, verified and run by the
+                     tests, and are asserted to be byte-for-byte canonical
 ```
 
-Core structures (sketch):
+*(Corrected by the implementation: the draft listed `pass-manager` and `lowering/openclaw`, `lowering/langgraph` as separate crates. The pass manager is forty lines and lives with the passes; the framework backends are phase 10 and do not exist yet, so they are not listed as if they did. A `Backend` trait is what they will implement.)*
+
+Core structures:
 
 ```rust
-pub struct Value { id: ValueId, ty: Type, provenance: Provenance }
+pub struct Value {
+    pub id: ValueId,
+    pub name: Option<String>,
+    pub ty: Type,
+    pub provenance: Provenance,
+    pub def: ValueDef,
+}
 
 pub struct Operation {
-    id: OperationId,
-    dialect: DialectId,
-    name: String,
-    operands: Vec<ValueId>,
-    results: Vec<Value>,
-    attributes: HashMap<String, Attribute>,
-    effect: Effect,
-    regions: Vec<Region>,
+    pub id: OperationId,
+    pub name: OpName,
+    pub literal: Option<String>,
+    pub operands: Vec<ValueId>,
+    pub results: Vec<ValueId>,
+    pub attributes: Attributes,
+    pub effect: Effect,
+    pub regions: Vec<RegionId>,
+    pub parent: Option<BlockId>,
+    pub erased: bool,
 }
 
 pub trait Pass {
-    fn name(&self) -> &str;
-    fn run(&self, module: &mut Module, ctx: &AnalysisContext) -> Result<PassReport, Diagnostic>;
+    fn name(&self) -> &'static str;
+    fn description(&self) -> &'static str;
+    fn run(&self, module: &mut Module) -> PassReport;
+}
+
+pub trait Backend {
+    fn name(&self) -> &'static str;
+    fn lower(&self, module: &Module, op: OperationId) -> Result<RuntimeTarget, Diagnostic>;
 }
 ```
+
+Everything lives in arenas owned by the `Module` and refers to itself by index. Erasing an operation leaves a tombstone rather than shifting the arena, so ids stay valid for the whole compilation and analyses can use dense side tables.
 
 ---
 
 ## 12. Roadmap
 
-| Phase | Goal | Deliverable | Success criterion | Main risk |
-|---|---|---|---|---|
-| 0. Research/spec | This document, stabilized by critical review | Spec v0.1 frozen | Reviewed by 2-3 external peers | Freezing bad effect semantics too early |
-| 1. Minimal IR | ir-core + `core` and `agent` dialects | Compilable Rust crate | An IR module can be built and printed | Over-generalizing before having a real use case |
-| 2. Parser/Printer | Syntax of §3.3 | Round-trip text → IR → text | Round-trip idempotence | Ambiguous grammar |
-| 3. Verifier | Invariants I1-I5 | Correct rejection of invalid programs | Negative test suite | False positives that block valid programs |
-| 4. Analysis | Dataflow + dependency graph | Analysis API usable by the passes | Correct graph on 10 hand-written examples | Implicit dependencies not captured (§5.1) |
-| 5. First passes | Dead Action Elimination, Parallelization (both with strict effect conditions) | 2 working passes + semantic non-regression tests | No pass alters the final result on the test bench | False security — believing a pass is safe without proof |
-| 6. Runtime | Executor + generic lowering | A simple agent runs end to end | Full loop IR → execution → observation → IR' | Underestimating the real complexity of lowering |
-| 7. Persistence/Recovery | State store, event log, checkpoints | Recovery after a simulated crash | Exact resume with no duplicated effect | Badly implemented idempotency |
-| 8. Benchmarks | Protocol of §9.4 | Published results, including negative ones | Reproducible comparison naive vs compiled agent | Selection bias in the benchmark tasks |
-| 9. SDKs | Rust + Python | API usable outside the repo | A third party builds a simple agent with the SDK | Unstable API that discourages adoption |
-| 10. Multi-backends | OpenClaw/LangGraph lowering | The same agent runs on 2 backends | Equivalent result on both | Divergent lowering semantics |
-| 11. Ecosystem | Documentation, governance, external contributions | Active community | Non-core contributions merged | Spec drift without an RFC process |
+| Phase | Goal | Status | What closes it |
+|---|---|---|---|
+| 0. Research/spec | This document, stabilized by critical review | **done, open to review** | External review by 2-3 peers is still outstanding |
+| 1. Minimal IR | `ir-core` and the dialect registry | **done** | A module can be built, printed and re-read |
+| 2. Parser/Printer | The syntax of §3.3 | **done** | `print(parse(f)) == f` asserted for every example |
+| 3. Verifier | Invariants I1-I5, then capabilities | **done** | A negative case per invariant, plus positives so a verifier cannot pass by rejecting everything |
+| 4. Analysis | Dominance, uses, effects, dependencies | **done** | Effect summaries look through regions, so a `#pure` loop over a deletion is not treated as pure |
+| 5. First passes | Dead Action Elimination, Parallelization, Deduplication | **done** | Optimized and unoptimized runs produce the same effects and the same answer |
+| 6. Runtime | Executor and the generic lowering | **done** | The §3.3 program runs end to end and returns the right candidate |
+| 7. Persistence/Recovery | Event log, checkpoints, ledger, recovery | **done** | The §16 scenario: 40 candidates, a crash after the 15th write, resume, 40 writes total |
+| 8. Benchmarks | The protocol of §9.4 | **not started** | Published results, negative ones included. No performance claim appears in this document until then |
+| 9. SDK | Rust API and a command line driver | **partly** | Rust and `agent-ir` exist; the Python SDK does not |
+| 10. Multi-backends | Lowering to OpenClaw / LangGraph | **not started** | The `Backend` trait is the seam; one implementation exists |
+| 11. Ecosystem | Documentation, governance, contributions | **not started** | An RFC process before the spec drifts |
+
+The honest reading of this table: the compiler and the runtime work, and **nothing about performance has been measured**. Phase 8 is the one that would let this project make a claim, and until it runs, §9.1's coefficients are placeholders and §13.1's latency figure is arithmetic rather than evidence.
 
 ---
 
@@ -603,7 +673,9 @@ flowchart TD
 
 The LLM proposed an implicit sequential chain (emission order = execution order), without expressing any parallelism.
 
-**Dependency analysis:** `inspect_model`, `inspect_hardware`, `inspect_dataset` all have a `Pure` effect, and none of their results is consumed by another — only `profile` depends on all three.
+**Dependency analysis:** `inspect_model`, `inspect_hardware`, `inspect_dataset` all read the same host and none of their results is consumed by another — only `profile` depends on all three. Reads never conflict with reads, so I3 is satisfied and the three may be scheduled together.
+
+*(Corrected by the implementation: the draft called these three `Pure`. They inspect a machine, so they are `ReadExternal` — §2.2's own warning is that an operation like `search_web` "looks pure but may have a cost". Declaring them honestly does not weaken the example: the three still parallelize, because two reads of the same scope do not conflict.)*
 
 **IR₁ — after the *Parallelization* pass (condition I3 satisfied: no `WriteExternal` conflict):**
 
@@ -620,7 +692,29 @@ flowchart TD
     classDef read fill:#e0f2fe,stroke:#0369a1,stroke-width:2px,color:#0c4a6e
 ```
 
-Expected gain (to be measured, §9.4): latency ≈ `max(t_A, t_B, t_C)` instead of `t_A + t_B + t_C`. No token change here — this is a pure latency gain, not an LLM cost gain.
+Expected gain (to be measured, §9.4): latency ≈ `max(t_A, t_B, t_C)` instead of `t_A + t_B + t_C`. No token change here — this is a latency gain, not an LLM cost gain.
+
+Run it:
+
+```console
+$ agent-ir opt examples/simple_agent.air --report
+2 round(s), 5 edit(s)
+  parallelization: created 2 rewrote 3
+    note[parallelization] at op6: grouped 3 adjacent operations with no dependency and no effect conflict
+
+$ agent-ir plan examples/simple_agent.air
+estimated: 0 tokens (0 in / 0 out), 0 llm call(s), 4 tool call(s), 503 ms
+
+batch 0
+  control.parallel  →  runtime.parallel
+    concurrently:
+      batch 0 (3 concurrent)
+        agent.action "inspect_model"     →  runtime.tool_call(tool = "inspect_model")
+        agent.action "inspect_hardware"  →  runtime.tool_call(tool = "inspect_hardware")
+        agent.action "inspect_dataset"   →  runtime.tool_call(tool = "inspect_dataset")
+```
+
+The 503 ms is the cost model of §9.1 applied to placeholder coefficients: three 250 ms reads counted once because they are concurrent, plus one more, plus the builtins. It is arithmetic, not a measurement, and §9.4 is where it gets checked against a real runtime.
 
 ### 13.2 Complex agent — candidate selection loop with observation
 
@@ -791,6 +885,10 @@ Key points illustrated:
 - **Idempotency key** (§8.3) protects against a double effect if the crash happened right after a `WriteExternal` whose acknowledgement was lost.
 - **Append-only Event Log** serves both as the source of truth for recovery and as an audit trail (§6, debugging).
 
+This scenario is a test, not a diagram. `examples/durable_benchmark.air` is compiled, crashed after the fifteenth recorded result, and resumed; the test asserts that forty writes happened in total, that fifteen were skipped rather than repeated, and that all forty benchmark *reads* were simply re-run — because `ReadExternal` licenses exactly that, and `WriteExternal` does not.
+
+The asymmetry is the point. Recovery here is replay, and it is the effect system that makes replay sound: a step the compiler proved replayable is re-run, a step it proved otherwise is memoized under its key. Without §2.2 there would be no principled way to know which is which.
+
 ---
 
 ## 17. Long-term vision
@@ -804,3 +902,73 @@ Compiler / Optimizer / Verifier / Scheduler
               │
       Multiple Runtimes
 ```
+
+---
+
+## 18. The reference implementation
+
+A Rust workspace implementing §2 through §16. Requires Rust 1.90 or newer.
+
+```console
+$ git clone https://github.com/rustnew/Agent-IR && cd Agent-IR
+$ cargo test --workspace
+$ cargo run -p agent-ir -- --help
+```
+
+### 18.1 The command line
+
+One subcommand per stage of §4, so each rejection point can be looked at on its own.
+
+```console
+$ agent-ir verify examples/optimize_inference.air
+examples/optimize_inference.air: accepted
+
+$ agent-ir verify bad.air
+error[I2] at op3: `tool.call` declares #irreversible<db> without a preceding
+                  `agent.verify` naming a capability that covers it
+  help: insert `agent.verify {capability = "..."}` before this operation, or
+        route it through human approval
+
+$ agent-ir opt examples/simple_agent.air --report      # what the §5 passes did
+$ agent-ir plan examples/durable_benchmark.air         # the §15 schedule and its cost
+$ agent-ir run examples/simple_agent.air \
+      --tools examples/tools/inspect.json \
+      --arg '"resnet"' --arg '"a100"' --arg '"imagenet"' --trace
+#0            started inspect_and_profile from IR0
+#1    op1  inspect_model [#read_external<host>]
+#2    op2  inspect_hardware [#read_external<host>]
+#3    op3  inspect_dataset [#read_external<host>]
+#4    op4  profile [#read_external<host>]
+#5            finished: {latency_ms: 41.2, throughput: 2400}
+
+result: {latency_ms: 41.2, throughput: 2400}
+4 effect(s) reached the world, 0 replayed from the ledger
+```
+
+`agent-ir dialects` prints the operation table of §3.2 with its effect column; `agent-ir passes` prints the pipeline and each pass's validity condition; `agent-ir fmt --check` is what keeps the examples in this document identical to what the compiler emits.
+
+### 18.2 What the tests establish
+
+208 tests, and the ones worth naming are the ones that would catch a wrong claim rather than a typo.
+
+| Property | Where | What would break if it failed |
+|---|---|---|
+| `print(parse(f)) == f` for every example | `parser/tests/round_trip.rs` | This document would describe a syntax the compiler does not accept |
+| A negative case per invariant, plus positives | `verifier/tests/invariants.rs` | A verifier can pass every negative test by rejecting everything |
+| Each pass declines when its §5 condition fails | `passes/src/*.rs` | An unread payment would be deleted as dead code |
+| Every pass re-verifies the module it produced | `passes/`, `agent-ir/src/lib.rs` | A pass could hand the runtime a program the compiler already promised was safe |
+| Optimized and unoptimized runs agree | `runtime/tests/durability.rs` | §12 phase 5's success criterion, and the whole premise of §5 |
+| Crash at 15 of 40, resume, 40 writes total | `runtime/tests/durability.rs` | §8.3 and §16 would be diagrams rather than behaviour |
+| A `#pure` loop over a deletion is not pure | `analysis/src/effects.rs` | Every §5 condition that reads an effect would read the wrong one |
+
+CI additionally runs `rustfmt`, `clippy` with warnings denied, `rustdoc` with warnings denied, and `agent-ir verify` over every checked-in example.
+
+### 18.3 What is not there
+
+Named plainly, because §0 rule 1 applies to completeness as much as to performance:
+
+- **No measurements.** Phase 8 of §12 has not run. The cost coefficients are placeholders and the latency figures in §13.1 and §18.1 are arithmetic over those placeholders.
+- **The reference executor is single-threaded.** A batch is a set of steps the scheduler *proved* may run together; exploiting that is a backend's job, and this one does not. The concurrency is in the plan, not in the process.
+- **Fifteen of the eighteen §5 passes are specification only.** Three are implemented.
+- **One backend.** The `Backend` trait is the seam for phase 10; only the generic runtime implements it.
+- **No Python SDK, no `policy` or `communication` dialect, no `control.branch`.**
