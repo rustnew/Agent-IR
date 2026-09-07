@@ -5,6 +5,7 @@
 // that break the accuracy constraint before selecting a survivor.
 module @inference version(0) {
   capability @benchmark scope("bench") grants(read_external)
+  capability @host scope("host") grants(read_external)
   capability @llm scope(*) grants(stochastic)
   capability @profiler scope("profiler") grants(read_external)
   capability @select_model scope("registry") grants(read_external)
@@ -13,8 +14,8 @@ module @inference version(0) {
   ^bb0(%model: !tool.ref<model>, %hardware: !tool.ref<hw>):
     %max_accuracy_loss = core.constant {effect = #pure, value = 0.01} : !core.float
     %ctx = agent.context(%max_accuracy_loss) {effect = #pure, objective = "latency"} : !agent.plan
-    %model_info = agent.action "inspect_model"(%model) {effect = #pure} : !observation.observation<model>
-    %hardware_info = agent.action "inspect_hardware"(%hardware) {effect = #pure} : !observation.observation<hw>
+    %model_info = agent.action "inspect_model"(%model) {effect = #read_external<host>} : !observation.observation<model>
+    %hardware_info = agent.action "inspect_hardware"(%hardware) {effect = #read_external<host>} : !observation.observation<hw>
     %profile = control.parallel {
       %profiled = agent.action "profile"(%model, %hardware) {effect = #read_external<profiler>} : !observation.observation<profile>
       control.yield(%profiled) {effect = #pure}
@@ -31,7 +32,7 @@ module @inference version(0) {
         agent.reject(%candidate) {effect = #pure}
       } {effect = #pure}
     } {effect = #pure, max_iterations = 40}
-    %selected = agent.action "select"(%candidates) {effect = #pure} : !tool.ref<model>
+    %selected = agent.action "select"(%candidates) {effect = #read_external<registry>} : !tool.ref<model>
     agent.verify(%selected) {effect = #pure, capability = "select_model"}
     agent.return(%selected) {effect = #pure}
   } {effect = #pure}

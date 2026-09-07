@@ -9,9 +9,9 @@ module @simple version(0) {
 
   agent.func "inspect_and_profile" {
   ^bb0(%model: !tool.ref<model>, %hardware: !tool.ref<hw>, %dataset: !tool.ref<dataset>):
-    %model_info = agent.action "inspect_model"(%model) {effect = #pure} : !observation.observation<model>
-    %hardware_info = agent.action "inspect_hardware"(%hardware) {effect = #pure} : !observation.observation<hw>
-    %dataset_info = agent.action "inspect_dataset"(%dataset) {effect = #pure} : !observation.observation<dataset>
+    %model_info = agent.action "inspect_model"(%model) {effect = #read_external<host>} : !observation.observation<model>
+    %hardware_info = agent.action "inspect_hardware"(%hardware) {effect = #read_external<host>} : !observation.observation<hw>
+    %dataset_info = agent.action "inspect_dataset"(%dataset) {effect = #read_external<host>} : !observation.observation<dataset>
     %profile = agent.action "profile"(%model_info, %hardware_info, %dataset_info) {effect = #read_external<host>} : !observation.observation<profile>
     agent.return(%profile) {effect = #pure}
   } {effect = #pure}

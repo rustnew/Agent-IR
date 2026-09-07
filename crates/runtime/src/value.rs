@@ -123,6 +123,47 @@ impl Value {
     }
 }
 
+impl Value {
+    /// Converts a JSON value, so a tool runtime can answer in JSON and a test
+    /// or the CLI can supply canned results from a file.
+    pub fn from_json(json: serde_json::Value) -> Self {
+        match json {
+            serde_json::Value::Null => Value::Null,
+            serde_json::Value::Bool(v) => Value::Bool(v),
+            serde_json::Value::Number(n) => match n.as_i64() {
+                Some(v) => Value::Int(v),
+                None => Value::Float(n.as_f64().unwrap_or(f64::NAN)),
+            },
+            serde_json::Value::String(v) => Value::Str(v),
+            serde_json::Value::Array(items) => {
+                Value::List(items.into_iter().map(Value::from_json).collect())
+            }
+            serde_json::Value::Object(entries) => Value::Record(
+                entries.into_iter().map(|(k, v)| (k, Value::from_json(v))).collect(),
+            ),
+        }
+    }
+
+    /// The JSON form, for the CLI and for anything that speaks JSON.
+    pub fn to_json(&self) -> serde_json::Value {
+        match self {
+            Value::Null => serde_json::Value::Null,
+            Value::Int(v) => (*v).into(),
+            Value::Float(v) => serde_json::Number::from_f64(*v)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null),
+            Value::Bool(v) => (*v).into(),
+            Value::Str(v) => v.clone().into(),
+            Value::List(items) => {
+                serde_json::Value::Array(items.iter().map(Value::to_json).collect())
+            }
+            Value::Record(entries) => serde_json::Value::Object(
+                entries.iter().map(|(k, v)| (k.clone(), v.to_json())).collect(),
+            ),
+        }
+    }
+}
+
 impl From<&Attribute> for Value {
     fn from(attribute: &Attribute) -> Self {
         match attribute {
@@ -230,6 +271,15 @@ mod tests {
             Value::from(&Attribute::Array(vec![Attribute::Bool(true)])),
             Value::List(vec![Value::Bool(true)])
         );
+    }
+
+    #[test]
+    fn json_converts_both_ways() {
+        let json: serde_json::Value =
+            serde_json::from_str(r#"{"latency": 1.5, "tags": ["a"], "ok": true}"#).unwrap();
+        let value = Value::from_json(json.clone());
+        assert_eq!(value.field("ok"), Some(&Value::Bool(true)));
+        assert_eq!(value.to_json(), json);
     }
 
     #[test]

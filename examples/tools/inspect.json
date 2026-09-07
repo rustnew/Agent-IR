@@ -1,0 +1,6 @@
+{
+  "inspect_model":    {"params": 7000000, "arch": "resnet50"},
+  "inspect_hardware": {"gpus": 8, "kind": "a100"},
+  "inspect_dataset":  {"rows": 120000},
+  "profile":          {"latency_ms": 41.2, "throughput": 2400}
+}
